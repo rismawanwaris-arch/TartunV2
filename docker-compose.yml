@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  fkof-app:
+    build: .
+    container_name: fkof-app
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+    environment:
+      - NODE_ENV=production
+      - PORT=3000

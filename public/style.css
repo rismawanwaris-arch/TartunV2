@@ -1,0 +1,1132 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;700&display=swap');
+
+/* --- ROOT VARIABLES --- */
+:root {
+    --font-sans: 'Inter', sans-serif;
+    --font-display: 'Orbitron', sans-serif;
+
+    --color-primary-dark: #0ea5e9;
+    --color-secondary-dark: #334155;
+    --color-accent-dark: #a855f7;
+    --color-danger-dark: #ef4444;
+    --color-success-dark: #22c55e;
+    --color-warning-dark: #f59e0b;
+
+    --bg-dark: #0f172a;
+    --bg-panel-dark: rgba(2, 6, 23, 0.5);
+    --bg-dropdown-dark: #1e293b; /* slate-800 */
+    --bg-input-dark: rgba(30, 41, 59, 0.7);
+    
+    --text-primary-dark: #e2e8f0;
+    --text-secondary-dark: #94a3b8;
+    --text-muted-dark: #64748b;
+    
+    --border-dark: rgba(56, 189, 248, 0.2);
+
+    --color-primary-light: #0369a1;
+    --color-secondary-light: #e2e8f0;
+    --color-accent-light: #9333ea;
+    --color-danger-light: #dc2626;
+    --color-success-light: #16a34a;
+    --color-warning-light: #d97706;
+    
+    --bg-light: #f1f5f9;
+    --bg-panel-light: rgba(255, 255, 255, 0.7);
+    --bg-dropdown-light: #e2e8f0; /* slate-200 */
+    --bg-input-light: rgba(241, 245, 249, 0.9);
+
+    --text-primary-light: #1e293b;
+    --text-secondary-light: #475569;
+    --text-muted-light: #64748b;
+
+    --border-light: rgba(203, 213, 225, 1);
+    
+    --panel-blur: 10px;
+
+    /* --- BARU: Variabel untuk Tema Flat --- */
+    --bg-panel-flat-dark: #1e293b; /* slate-800 */
+    --border-flat-dark: #334155; /* slate-700 */
+    --bg-input-flat-dark: #334155; /* slate-700 */
+
+    --bg-panel-flat-light: #ffffff;
+    --border-flat-light: #e2e8f0; /* slate-200 */
+    --bg-input-flat-light: #ffffff;
+}
+
+/* --- THEME DEFINITIONS --- */
+.dark {
+    color-scheme: dark;
+    --color-primary: var(--color-primary-dark);
+    --color-secondary: var(--color-secondary-dark);
+    --color-accent: var(--color-accent-dark);
+    --color-danger: var(--color-danger-dark);
+    --color-success: var(--color-success-dark);
+    --color-warning: var(--color-warning-dark);
+    --bg-main: var(--bg-dark);
+    --bg-panel: var(--bg-panel-dark);
+    --bg-dropdown: var(--bg-dropdown-dark);
+    --bg-input: var(--bg-input-dark);
+    --text-primary: var(--text-primary-dark);
+    --text-secondary: var(--text-secondary-dark);
+    --text-muted-dark: var(--text-muted-dark);
+    --border-color: var(--border-dark);
+}
+
+.light {
+    color-scheme: light;
+    --color-primary: var(--color-primary-light);
+    --color-secondary: var(--color-secondary-light);
+    --color-accent: var(--color-accent-light);
+    --color-danger: var(--color-danger-light);
+    --color-success: var(--color-success-light);
+    --color-warning: var(--color-warning-light);
+    --bg-main: var(--bg-light);
+    --bg-panel: var(--bg-panel-light);
+    --bg-dropdown: var(--bg-dropdown-light);
+    --bg-input: var(--bg-input-light);
+    --text-primary: var(--text-primary-light);
+    --text-secondary: var(--text-secondary-light);
+    --text-muted: var(--text-muted-light);
+    --border-color: var(--border-light);
+}
+
+/* --- BARU: Penimpaan Variabel untuk Tema Flat --- */
+.flat.dark {
+    --bg-panel: var(--bg-panel-flat-dark);
+    --border-color: var(--border-flat-dark);
+    --bg-input: var(--bg-input-flat-dark);
+}
+
+.flat.light {
+    --bg-panel: var(--bg-panel-flat-light);
+    --border-color: var(--border-flat-light);
+    --bg-input: var(--bg-input-flat-light);
+}
+
+
+/* --- BASE & GLOBAL STYLES --- */
+html {
+    font-size: clamp(14px, 1.5vw, 16px);
+}
+
+body {
+    font-family: var(--font-sans);
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    transition: background-color 0.3s ease;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+}
+
+#image-bg-container {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-size: cover; background-position: center;
+    transition: background-image 0.5s ease-in-out;
+    z-index: -1;
+}
+
+#app-container {
+    visibility: hidden; opacity: 0; transition: opacity 0.5s ease-out;
+}
+
+.glass-panel {
+    background-color: var(--bg-panel);
+    backdrop-filter: blur(var(--panel-blur));
+    border: 1px solid var(--border-color);
+    border-radius: 1rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.1);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+/* --- BARU: Menghilangkan Efek Kaca pada Tema Flat --- */
+.flat .glass-panel {
+    backdrop-filter: none;
+    box-shadow: none;
+}
+
+#page-wrapper {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+
+/* --- DESKTOP LAYOUT (Default) --- */
+#body-wrapper {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    width: 100vw;
+    padding: 1rem;
+    gap: 1rem;
+}
+
+#main-nav {
+    position: relative;
+    height: 100%;
+    width: 16rem; /* 256px */
+    border-radius: 1rem;
+    display: flex;
+    flex-direction: column;
+    transition: none;
+}
+
+#main-nav .btn-nav span,
+#main-nav .text-center.py-4,
+#main-nav h2,
+#main-nav #public-log-panel,
+#main-nav .mt-auto.pt-4 {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+#main-nav .btn-nav {
+    justify-content: flex-start;
+}
+
+#main-nav .btn-nav i[data-lucide] {
+    width: 1.25rem;
+    height: 1.25rem;
+}
+    
+#app-container {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    padding: 0;
+}
+
+/* --- MODAL Z-INDEX --- */
+#login-modal, #generic-modal {
+    z-index: 100;
+}
+
+/* --- GRID & LAYOUT STYLES (Desktop Default) --- */
+#filter-panel .grid {
+    grid-template-columns: repeat(12, 1fr);
+}
+#filter-panel .grid > div:nth-child(1) { grid-column: span 4 / span 4; }
+#filter-panel .grid > div:nth-child(2) { grid-column: span 2 / span 2; }
+#filter-panel .grid > div:nth-child(3) { grid-column: span 2 / span 2; }
+#filter-panel .grid > div:nth-child(4) { grid-column: span 2 / span 2; }
+#filter-panel .grid > div:nth-child(5) { grid-column: span 2 / span 2; }
+
+#dashboard-grid {
+    grid-template-columns: repeat(6, 1fr);
+}
+
+#charts-container {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+#analysis-stats-panel {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+}
+
+.staging-actions-panel {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1rem;
+}
+.staging-actions-panel .btn {
+    width: auto;
+}
+.staging-actions-panel #undo-last-import-btn {
+    margin-right: auto;
+}
+
+/* Table Layouts */
+#summary-combined-container,
+#analysis-virtual-scroll-wrapper > .glass-panel {
+    overflow: hidden;
+}
+
+.summary-grid-layout,
+.analysis-grid-layout,
+.user-management-grid-layout {
+    display: grid;
+    gap: 0 1rem;
+    align-items: center;
+}
+
+.summary-grid-layout {
+    grid-template-columns: minmax(150px, 3fr) repeat(6, minmax(120px, 1fr));
+}
+
+.analysis-grid-layout {
+    grid-template-columns: 48px minmax(150px, 1.5fr) minmax(180px, 2fr) minmax(120px, 1fr) minmax(200px, 3fr) minmax(80px, 1fr) 80px;
+}
+
+.user-management-grid-layout {
+    grid-template-columns: 60px minmax(180px, 2fr) minmax(100px, 1fr) minmax(120px, 1fr) minmax(150px, 1.5fr) 100px 160px;
+}
+
+#analysis-grid-header > .bg-black\/10 {
+    display: grid;
+}
+
+/* --- VIRTUAL SCROLL STYLES --- */
+#summary-scroller, #analysis-scroller, #user-management-scroller {
+    position: relative;
+    width: 100%;
+}
+
+#summary-table-body, #analysis-grid-body, #user-management-table-body {
+    position: absolute; 
+    top: 0;
+    left: 0;
+    width: 100%;
+}
+
+/* --- CONTENT VIEW STYLES --- */
+#content-view {
+    transition: opacity 0.3s ease-in-out, margin-top 0.3s ease-in-out;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 1.5rem; /* p-6 */
+}
+
+#content-view.content-hidden {
+    opacity: 0;
+}
+
+/* --- COMPONENT STYLES (Buttons, Forms, etc.) --- */
+.btn {
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease-in-out;
+}
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-sm {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.875rem;
+    gap: 0.25rem;
+}
+
+.btn-primary {
+    background-color: var(--color-primary);
+    color: white;
+}
+.btn-primary:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-primary) 90%, black 5%);
+    box-shadow: 0 0 15px -2px var(--color-primary);
+    transform: translateY(-2px);
+}
+
+/* --- BARU: Menghilangkan bayangan tombol pada tema flat --- */
+.flat .btn-primary:hover:not(:disabled) {
+    box-shadow: none;
+    transform: none;
+}
+
+.btn-secondary {
+    background-color: var(--bg-input);
+    color: var(--text-secondary);
+    border-color: var(--border-color);
+}
+.btn-secondary:hover:not(:disabled) {
+    background-color: var(--color-secondary);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
+
+.btn-danger {
+    background-color: var(--color-danger);
+    color: white;
+}
+.btn-danger:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-danger) 90%, black 5%);
+    box-shadow: 0 0 15px -2px var(--color-danger);
+    transform: translateY(-2px);
+}
+
+/* --- BARU: Menghilangkan bayangan tombol pada tema flat --- */
+.flat .btn-danger:hover:not(:disabled) {
+    box-shadow: none;
+    transform: none;
+}
+
+.btn-success {
+    background-color: var(--color-success);
+    color: white;
+}
+
+.btn-warning {
+    background-color: var(--color-warning);
+    color: white;
+}
+.btn-warning:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-warning) 90%, black 5%);
+}
+
+.btn-nav {
+    display: flex; align-items: center; width: 100%; text-align: left;
+    padding: 0.75rem 1rem; border-radius: 0.5rem;
+    font-weight: 500; color: var(--text-secondary);
+    transition: all 0.2s ease-in-out;
+}
+.btn-nav:hover {
+    background-color: var(--bg-input);
+    color: var(--text-primary);
+}
+.btn-nav.active {
+    background-color: var(--color-primary);
+    color: white;
+    font-weight: 700;
+    box-shadow: 0 0 12px -3px var(--color-primary);
+}
+
+/* --- BARU: Menghilangkan bayangan tombol navigasi aktif pada tema flat --- */
+.flat .btn-nav.active {
+    box-shadow: none;
+}
+
+.form-input, .form-select, .form-textarea {
+    width: 100%;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    color: var(--text-primary);
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 30%, transparent);
+}
+.form-select { appearance: none; background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; }
+
+.summary-row-clickable {
+    cursor: pointer;
+}
+
+.summary-row-clickable:hover {
+    background-color: color-mix(in srgb, var(--color-primary) 15%, transparent) !important;
+}
+
+.glitch-container {
+    font-family: var(--font-display);
+    position: relative;
+    color: var(--text-primary);
+    animation: glitch-flicker 4s infinite alternate;
+}
+
+@keyframes glitch-flicker {
+    0%, 15%, 20%, 80%, 100% {
+        text-shadow: 
+            0.05em 0 0 var(--color-accent),
+            -0.05em 0 0 var(--color-primary);
+        opacity: 1;
+    }
+    18%, 22% {
+        text-shadow: none;
+        opacity: 0.9;
+    }
+    19%, 82% {
+        transform: translate(1px, -1px);
+        text-shadow: 
+            0.05em 0 0 var(--color-accent),
+            -0.1em 0 0 var(--color-primary);
+    }
+}
+
+.progress-bar-container { background-color: var(--bg-input); border-radius: 9999px; overflow: hidden; border: 1px solid var(--border-color); }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--color-accent), var(--color-primary)); border-radius: 9999px; transition: width 0.5s ease-in-out; }
+
+.segmented-control {
+    display: flex;
+    width: 100%;
+    background-color: var(--bg-input);
+    border-radius: 0.5rem;
+    padding: 2px;
+    border: 1px solid var(--border-color);
+}
+.segmented-control-button {
+    flex: 1;
+    padding: 0.25rem 0.5rem;
+    text-align: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border: none;
+    background-color: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+}
+.segmented-control-button:hover {
+    background-color: var(--color-secondary);
+    color: var(--text-primary);
+}
+.segmented-control-button.active {
+    background-color: var(--color-primary);
+    color: white;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background-color: var(--color-secondary);
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-primary);
+}
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-secondary) transparent;
+}
+
+.text-color-primary { color: var(--color-primary); }
+.text-color-accent { color: var(--color-accent); }
+.text-color-danger { color: var(--color-danger); }
+.text-color-success { color: var(--color-success); }
+.text-color-warning { color: var(--color-warning); }
+
+@keyframes spin { to { transform: rotate(360deg); } } .spinner { animation: spin 1s linear infinite; }
+@keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+@keyframes glow { 0%, 100% { text-shadow: 0 0 5px, 0 0 10px; } 50% { text-shadow: 0 0 10px, 0 0 20px; } }
+@keyframes slide-in-left { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slide-in-right { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes slide-in-top { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes slide-in-bottom { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes bounce { 0%, 20%, 50%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-15px); } 60% { transform: translateY(-8px); } }
+@keyframes shake { 0%, 100% { transform: translateX(0); } 10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); } 20%, 40%, 60%, 80% { transform: translateX(5px); } }
+@keyframes tada { from { transform: scale3d(1, 1, 1); } 10%, 20% { transform: scale3d(.9, .9, .9) rotate3d(0, 0, 1, -3deg); } 30%, 50%, 70%, 90% { transform: scale3d(1.1, 1.1, 1.1) rotate3d(0, 0, 1, 3deg); } 40%, 60%, 80% { transform: scale3d(1.1, 1.1, 1.1) rotate3d(0, 0, 1, -3deg); } to { transform: scale3d(1, 1, 1); } }
+
+.animate-pulse { animation: pulse 2s infinite ease-in-out; }
+.animate-glow { animation: glow 1.5s infinite alternate; }
+.animate-slide-in-left { animation: slide-in-left 0.5s both; }
+.animate-slide-in-right { animation: slide-in-in-right 0.5s both; }
+.animate-slide-in-top { animation: slide-in-top 0.5s both; }
+.animate-slide-in-bottom { animation: slide-in-bottom 0.5s both; }
+.animate-bounce { animation: bounce 1s both; }
+.animate-shake { animation: shake 0.82s both; }
+.animate-tada { animation: tada 1s both; }
+
+.clickable-cell { transition: all 0.2s ease; }
+.clickable-cell:hover { color: var(--color-primary); background-color: color-mix(in srgb, var(--color-primary) 15%, transparent); }
+
+.parsing-column-tag {
+    padding: 0.25rem 0.75rem;
+    background-color: var(--color-secondary);
+    color: var(--text-primary);
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: grab;
+    transition: background-color 0.2s;
+}
+.parsing-column-tag:hover {
+    background-color: var(--color-primary);
+    color: white;
+}
+.sortable-ghost {
+    opacity: 0.4;
+    background: var(--color-accent);
+}
+#parsing-date-formats-list li [data-lucide="grip-vertical"] {
+    cursor: grab;
+}
+
+.settings-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-weight: 600;
+    transition: all 0.2s ease-in-out;
+}
+
+.settings-tab-btn:hover {
+    color: var(--text-primary);
+}
+
+.settings-tab-btn.active {
+    color: var(--color-primary);
+    border-bottom-color: var(--color-primary);
+}
+
+.accordion-button {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 1rem;
+    font-weight: 700;
+    text-align: left;
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 0.75rem;
+    color: var(--text-primary);
+    transition: background-color 0.2s ease;
+}
+.accordion-button:hover {
+    background-color: rgba(0,0,0,0.3);
+}
+.accordion-icon {
+    transition: transform 0.3s ease;
+}
+.accordion-button.active .accordion-icon {
+    transform: rotate(180deg);
+}
+.accordion-content {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.4s ease-out, padding-top 0.4s ease-out;
+    padding-top: 0;
+}
+
+#sticky-filter-wrapper {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    transition: margin-bottom 0.4s ease-in-out;
+    margin-bottom: 1rem;
+}
+
+#filter-panel {
+    transition: max-height 0.4s ease-in-out, padding-top 0.4s ease-in-out, padding-bottom 0.4s ease-in-out, border-width 0.3s ease-in-out, opacity 0.3s ease-in-out;
+    max-height: 500px;
+    overflow: hidden; 
+}
+
+#preset-dropdown-menu,
+#summary-export-menu,
+#charts-export-menu,
+#analysis-export-menu {
+    position: absolute;
+    z-index: 30;
+    background-color: var(--bg-dropdown);
+}
+
+.overflow-visible-important {
+    overflow: visible !important;
+}
+
+#filter-toggle-handle .lucide-chevron-up {
+    transition: transform .3s ease-in-out;
+}
+
+#filter-toggle-handle:hover > div, #filter-toggle-handle.active > div {
+    background-color: var(--color-primary);
+}
+
+#sticky-filter-wrapper.filter-collapsed {
+    margin-bottom: 0;
+}
+
+#sticky-filter-wrapper.filter-collapsed #filter-panel {
+    max-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    border-width: 0;
+    opacity: 0;
+}
+
+.dark input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(1) brightness(0.8);
+}
+
+.light input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: none;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    text-transform: uppercase;
+}
+
+#theme-toggle, #footer-user-mgmt-btn, #footer-login-btn {
+    width: 40px;
+    height: 40px;
+    aspect-ratio: 1 / 1;
+    padding: 0.5rem;
+}
+
+.user-avatar-icon {
+    padding: 0 !important;
+    overflow: hidden;
+}
+
+.user-avatar-icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 0.375rem;
+}
+
+.widget-table-container .overflow-auto {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+.widget-table-container .overflow-auto::-webkit-scrollbar {
+    display: none;
+}
+
+.dashboard-header {
+    position: relative;
+    min-height: 32px;
+}
+
+#configure-widgets-btn {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+    position: absolute;
+    top: -4px;
+    right: 0;
+}
+
+.dashboard-header:hover #configure-widgets-btn {
+    opacity: 1;
+    visibility: visible;
+}
+
+#settings-accordion-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.transaction-detail-grid-layout {
+    display: grid;
+    gap: 0 1rem;
+    align-items: center;
+}
+
+.layout-can-edit {
+    grid-template-columns: 48px minmax(150px, 1.5fr) minmax(150px, 1.5fr) minmax(120px, 1fr) minmax(200px, 3fr) 100px;
+}
+
+.layout-cannot-edit {
+    grid-template-columns: minmax(150px, 1.5fr) minmax(150px, 1.5fr) minmax(120px, 1fr) minmax(200px, 3fr) 100px;
+}
+
+#summary-export-toggle,
+#charts-export-toggle,
+#analysis-export-toggle {
+    background-color: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+}
+
+#summary-export-toggle:hover:not(:disabled),
+#charts-export-toggle:hover:not(:disabled),
+#analysis-export-toggle:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-primary) 90%, black 5%);
+    box-shadow: 0 0 15px -2px var(--color-primary);
+    transform: translateY(-2px);
+}
+
+/* --- DIPERBARUI: Gaya untuk Laporan Lanskap --- */
+.report-for-download {
+    background-color: #ffffff !important;
+    color: #1e293b !important;
+    font-family: var(--font-sans);
+    font-size: 14px;
+    padding: 2rem;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.report-for-download .report-header {
+    margin-bottom: 2rem;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 1rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.report-for-download .report-header h1 {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: #0f172a;
+    margin: 0;
+}
+
+.report-for-download .report-header p {
+    font-size: 0.875rem;
+    color: #475569;
+    margin-top: 0.25rem;
+}
+
+.report-for-download .report-body {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+    align-items: flex-start;
+    flex-grow: 1;
+}
+
+.report-for-download .report-main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.report-for-download .report-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.report-for-download .report-metrics {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    width: 100%;
+}
+
+.report-for-download .metric-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    text-align: left;
+}
+
+.report-for-download .metric-card h3 {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    margin: 0;
+}
+
+.report-for-download .metric-card p {
+    font-family: var(--font-display);
+    font-size: 1.75rem;
+    color: #0f172a;
+    margin: 0.5rem 0 0 0;
+}
+
+/* --- BARU: Gaya untuk Progress Bar Laporan --- */
+.report-for-download .report-progress-bar-container {
+    background-color: #e2e8f0;
+    border-radius: 9999px;
+    overflow: hidden;
+    height: 8px;
+    margin-top: 0.5rem;
+}
+
+.report-for-download .report-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #9333ea, #0369a1);
+    border-radius: 9999px;
+}
+
+.report-for-download .report-progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #475569;
+    margin-top: 0.25rem;
+}
+/* --- AKHIR Gaya Progress Bar --- */
+
+.report-for-download .chart-panel {
+    border: 1px solid #e2e8f0;
+    padding: 1.5rem;
+    border-radius: 0.75rem;
+    page-break-inside: avoid;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.report-for-download .chart-title {
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    color: #1e293b;
+    flex-shrink: 0;
+}
+
+.report-for-download .report-table {
+    page-break-inside: avoid;
+}
+
+.report-for-download .report-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.report-for-download .report-table th,
+.report-for-download .report-table td {
+    border: 1px solid #e2e8f0;
+    padding: 0.75rem;
+    text-align: left;
+}
+
+.report-for-download .report-table th {
+    background-color: #f1f5f9;
+    font-weight: 600;
+}
+
+.report-for-download .report-table td.text-right {
+    text-align: right;
+}
+
+.report-for-download .report-footer {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #64748b;
+    flex-shrink: 0;
+}
+
+.report-for-download h1, .report-for-download h2, .report-for-download h3, .report-for-download h4,
+.report-for-download p, .report-for-download span, .report-for-download div,
+.report-for-download th, .report-for-download td, .report-for-download li, .report-for-download label {
+    color: #1e293b !important;
+    text-shadow: none !important;
+}
+/* --- AKHIR Gaya untuk Laporan --- */
+
+
+/* --- BARU: Gaya untuk Overlay Panggung Render --- */
+#report-render-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(15, 23, 42, 0.8);
+    z-index: 200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+    opacity: 0;
+    animation: fade-in 0.3s ease forwards;
+}
+
+#report-render-content {
+    padding: 2.5rem;
+    background-color: var(--bg-dropdown-dark);
+    border: 1px solid var(--border-dark);
+    border-radius: 1rem;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    color: var(--text-primary-dark);
+    transform: scale(0.95);
+    animation: fade-in 0.4s 0.1s ease forwards, scale-up 0.4s 0.1s ease forwards;
+}
+
+@keyframes scale-up {
+    to { transform: scale(1); }
+}
+/* --- AKHIR Gaya untuk Overlay --- */
+
+
+/* --- RESPONSIVE STYLES --- */
+
+/* Tablet Layout */
+@media (max-width: 1024px) {
+    #body-wrapper {
+        padding: 0.5rem;
+        gap: 0.5rem;
+    }
+
+    #main-nav {
+        width: 14rem; /* 224px */
+    }
+
+    #filter-panel .grid {
+        grid-template-columns: repeat(6, 1fr);
+    }
+    #filter-panel .grid > div:nth-child(1) { grid-column: span 6 / span 6; } /* Search */
+    #filter-panel .grid > div:nth-child(2) { grid-column: span 3 / span 3; } /* Start Date */
+    #filter-panel .grid > div:nth-child(3) { grid-column: span 3 / span 3; } /* End Date */
+    #filter-panel .grid > div:nth-child(4) { grid-column: span 3 / span 3; } /* Preset */
+    #filter-panel .grid > div:nth-child(5) { grid-column: span 3 / span 3; } /* Type & Reset */
+
+    #dashboard-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    #dashboard-grid .col-span-6 { grid-column: span 4 / span 4; }
+    #dashboard-grid .col-span-3 { grid-column: span 2 / span 2; }
+    #dashboard-grid .col-span-2 { grid-column: span 2 / span 2; }
+
+    #analysis-stats-panel {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Mobile Layout */
+@media (max-width: 768px) {
+    body {
+        overflow: auto;
+    }
+
+    #body-wrapper {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+        padding: 0.5rem;
+    }
+
+    #page-wrapper {
+        order: 1; /* Konten utama di atas */
+        padding-bottom: 80px; /* Ruang untuk nav bawah */
+    }
+
+    #main-nav {
+        order: 2; /* Navigasi di bawah */
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 65px;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        padding: 0.25rem;
+        border-radius: 0;
+        z-index: 50;
+    }
+
+    /* Sembunyikan elemen nav yang tidak perlu di mobile */
+    #main-nav .text-center, 
+    #main-nav h2, 
+    #main-nav #public-log-panel,
+    #main-nav #status-display {
+        display: none;
+    }
+
+    #main-nav > div {
+        flex-grow: 1 !important;
+    }
+    #main-nav #protected-menu-wrapper {
+        flex-grow: 0 !important;
+    }
+    #main-nav #protected-menu-container {
+        display: block !important;
+    }
+
+    #main-nav #public-menu,
+    #main-nav #protected-menu {
+        display: flex;
+        justify-content: space-around;
+        width: 100%;
+    }
+    
+    #main-nav .btn-nav {
+        flex-direction: column;
+        gap: 0.1rem;
+        padding: 0.25rem;
+        font-size: 0.65rem;
+        flex-grow: 1;
+        text-align: center;
+    }
+    
+    #main-nav .btn-nav span {
+        display: block;
+    }
+
+    #main-nav .mt-auto.pt-4 {
+        border-top: none;
+        padding-top: 0;
+        margin-top: 0;
+    }
+    #main-nav .mt-auto .flex {
+        width: 100%;
+    }
+    
+    #content-view {
+        padding: 1rem;
+    }
+
+    #filter-panel .grid {
+        grid-template-columns: 1fr;
+    }
+    #filter-panel .grid > div {
+        grid-column: span 1 / span 1 !important;
+    }
+
+    #dashboard-grid,
+    #charts-container,
+    #analysis-stats-panel,
+    #user-stats-panel {
+        grid-template-columns: 1fr;
+    }
+
+    #summary-template .grid {
+        grid-template-columns: 1fr;
+    }
+
+    #charts-container .grid {
+        grid-template-columns: 1fr;
+    }
+    #charts-container .col-span-3, #charts-container .col-span-2 {
+        grid-column: span 1 / span 1;
+    }
+
+    /* Buat tabel bisa di-scroll horizontal */
+    #summary-table-body-wrapper,
+    #analysis-table-container,
+    #user-management-scroll-container {
+        overflow-x: auto;
+    }
+
+    .summary-grid-layout,
+    .analysis-grid-layout,
+    .user-management-grid-layout {
+        min-width: 800px; /* Beri lebar minimum agar tidak rusak */
+    }
+
+    #generic-modal-panel {
+        width: 95%;
+        padding: 1.5rem;
+    }
+    
+    #analysis-template .flex.items-center.gap-4 {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+    }
+}

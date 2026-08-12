@@ -1,0 +1,205 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@11.17.0
+2 info using node@v24.19.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/wisnuwar/Documents/Coding/Tartun V2/.npmrc
+5 silly config load:file:/Users/wisnuwar/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm install helmet express-rate-limit
+8 verbose argv "install" "helmet" "express-rate-limit" "--cache" ".npm-cache"
+9 verbose logfile logs-max:10 dir:/Users/wisnuwar/Documents/Coding/Tartun V2/.npm-cache/_logs/2026-08-12T06_27_04_394Z-
+10 verbose logfile /Users/wisnuwar/Documents/Coding/Tartun V2/.npm-cache/_logs/2026-08-12T06_27_04_394Z-debug-0.log
+11 silly logfile done cleaning log files
+12 silly packumentCache heap:2348810240 maxSize:587202560 maxEntrySize:293601280
+13 silly idealTree buildDeps
+14 silly fetch manifest helmet@*
+15 silly packumentCache full:https://registry.npmjs.org/helmet cache-miss
+16 http fetch GET 200 https://registry.npmjs.org/helmet 243ms (cache miss)
+17 silly packumentCache full:https://registry.npmjs.org/helmet set size:undefined disposed:false
+18 silly fetch manifest express-rate-limit@*
+19 silly packumentCache full:https://registry.npmjs.org/express-rate-limit cache-miss
+20 http fetch GET 200 https://registry.npmjs.org/express-rate-limit 98ms (cache miss)
+21 silly packumentCache full:https://registry.npmjs.org/express-rate-limit set size:undefined disposed:false
+22 silly fetch manifest express@^5.2.1
+23 silly packumentCache full:https://registry.npmjs.org/express cache-miss
+24 http fetch GET 200 https://registry.npmjs.org/express 46ms (cache revalidated)
+25 silly packumentCache full:https://registry.npmjs.org/express set size:804956 disposed:false
+26 silly placeDep ROOT express-rate-limit@8.6.2 OK for: uc1nx-main@1.0.0 want: *
+27 silly placeDep ROOT helmet@8.3.0 OK for: uc1nx-main@1.0.0 want: *
+28 silly fetch manifest ip-address@^10.2.0
+29 silly packumentCache full:https://registry.npmjs.org/ip-address cache-miss
+30 http fetch GET 200 https://registry.npmjs.org/ip-address 69ms (cache miss)
+31 silly packumentCache full:https://registry.npmjs.org/ip-address set size:undefined disposed:false
+32 silly placeDep ROOT ip-address@10.5.0 OK for: express-rate-limit@8.6.2 want: ^10.2.0
+33 silly reify moves {}
+34 silly audit bulk request {
+34 silly audit   '@isaacs/fs-minipass': [ '4.0.1' ],
+34 silly audit   abbrev: [ '4.0.0' ],
+34 silly audit   accepts: [ '2.0.0' ],
+34 silly audit   'append-field': [ '1.0.0' ],
+34 silly audit   'base64-js': [ '1.5.1' ],
+34 silly audit   bcryptjs: [ '3.0.3' ],
+34 silly audit   bindings: [ '1.5.0' ],
+34 silly audit   bl: [ '4.1.0' ],
+34 silly audit   'body-parser': [ '2.3.0' ],
+34 silly audit   'content-type': [ '2.0.0', '1.0.5' ],
+34 silly audit   buffer: [ '5.7.1' ],
+34 silly audit   'buffer-equal-constant-time': [ '1.0.1' ],
+34 silly audit   'buffer-from': [ '1.1.2' ],
+34 silly audit   busboy: [ '1.6.0' ],
+34 silly audit   bytes: [ '3.1.2' ],
+34 silly audit   'call-bind-apply-helpers': [ '1.0.2' ],
+34 silly audit   'call-bound': [ '1.0.4' ],
+34 silly audit   chownr: [ '3.0.0', '1.1.4' ],
+34 silly audit   'concat-stream': [ '2.0.0' ],
+34 silly audit   'content-disposition': [ '1.1.0' ],
+34 silly audit   cookie: [ '0.7.2' ],
+34 silly audit   'cookie-signature': [ '1.2.2' ],
+34 silly audit   cors: [ '2.8.6' ],
+34 silly audit   debug: [ '4.4.3' ],
+34 silly audit   'decompress-response': [ '6.0.0' ],
+34 silly audit   'deep-extend': [ '0.6.0' ],
+34 silly audit   depd: [ '2.0.0' ],
+34 silly audit   'detect-libc': [ '2.1.2' ],
+34 silly audit   'dunder-proto': [ '1.0.1' ],
+34 silly audit   'ecdsa-sig-formatter': [ '1.0.11' ],
+34 silly audit   'ee-first': [ '1.1.1' ],
+34 silly audit   encodeurl: [ '2.0.0' ],
+34 silly audit   'end-of-stream': [ '1.4.5' ],
+34 silly audit   'env-paths': [ '2.2.1' ],
+34 silly audit   'es-define-property': [ '1.0.1' ],
+34 silly audit   'es-errors': [ '1.3.0' ],
+34 silly audit   'es-object-atoms': [ '1.1.2' ],
+34 silly audit   'escape-html': [ '1.0.3' ],
+34 silly audit   etag: [ '1.8.1' ],
+34 silly audit   'expand-template': [ '2.0.3' ],
+34 silly audit   'exponential-backoff': [ '3.1.3' ],
+34 silly audit   express: [ '5.2.1' ],
+34 silly audit   fdir: [ '6.5.0' ],
+34 silly audit   'file-uri-to-path': [ '1.0.0' ],
+34 silly audit   finalhandler: [ '2.1.1' ],
+34 silly audit   forwarded: [ '0.2.0' ],
+34 silly audit   fresh: [ '2.0.0' ],
+34 silly audit   'fs-constants': [ '1.0.0' ],
+34 silly audit   'function-bind': [ '1.1.2' ],
+34 silly audit   'get-intrinsic': [ '1.3.0' ],
+34 silly audit   'get-proto': [ '1.0.1' ],
+34 silly audit   'github-from-package': [ '0.0.0' ],
+34 silly audit   gopd: [ '1.2.0' ],
+34 silly audit   'graceful-fs': [ '4.2.11' ],
+34 silly audit   'has-symbols': [ '1.1.0' ],
+34 silly audit   hasown: [ '2.0.4' ],
+34 silly audit   'http-errors': [ '2.0.1' ],
+34 silly audit   'iconv-lite': [ '0.7.3' ],
+34 silly audit   ieee754: [ '1.2.1' ],
+34 silly audit   inherits: [ '2.0.4' ],
+34 silly audit   ini: [ '1.3.8' ],
+34 silly audit   'ipaddr.js': [ '1.9.1' ],
+34 silly audit   'is-promise': [ '4.0.0' ],
+34 silly audit   isexe: [ '4.0.0' ],
+34 silly audit   jsonwebtoken: [ '9.0.3' ],
+34 silly audit   jwa: [ '2.0.1' ],
+34 silly audit   jws: [ '4.0.1' ],
+34 silly audit   'lodash.includes': [ '4.3.0' ],
+34 silly audit   'lodash.isboolean': [ '3.0.3' ],
+34 silly audit   'lodash.isinteger': [ '4.0.4' ],
+34 silly audit   'lodash.isnumber': [ '3.0.3' ],
+34 silly audit   'lodash.isplainobject': [ '4.0.6' ],
+34 silly audit   'lodash.isstring': [ '4.0.1' ],
+34 silly audit   'lodash.once': [ '4.1.1' ],
+34 silly audit   'math-intrinsics': [ '1.1.0' ],
+34 silly audit   'media-typer': [ '1.1.1', '0.3.0' ],
+34 silly audit   'merge-descriptors': [ '2.0.0' ],
+34 silly audit   'mime-db': [ '1.54.0', '1.52.0' ],
+34 silly audit   'mime-types': [ '3.0.2', '2.1.35' ],
+34 silly audit   'mimic-response': [ '3.1.0' ],
+34 silly audit   minimist: [ '1.2.8' ],
+34 silly audit   minipass: [ '7.1.3' ],
+34 silly audit   minizlib: [ '3.1.0' ],
+34 silly audit   'mkdirp-classic': [ '0.5.3' ],
+34 silly audit   ms: [ '2.1.3' ],
+34 silly audit   multer: [ '2.2.0' ],
+34 silly audit   'type-is': [ '1.6.18', '2.1.0' ],
+34 silly audit   'napi-build-utils': [ '2.0.0' ],
+34 silly audit   negotiator: [ '1.0.0' ],
+34 silly audit   'node-abi': [ '3.94.0' ],
+34 silly audit   'node-addon-api': [ '8.9.1' ],
+34 silly audit   'node-gyp': [ '12.4.0' ],
+34 silly audit   nopt: [ '9.0.0' ],
+34 silly audit   'object-assign': [ '4.1.1' ],
+34 silly audit   'object-inspect': [ '1.13.4' ],
+34 silly audit   'on-finished': [ '2.4.1' ],
+34 silly audit   once: [ '1.4.0' ],
+34 silly audit   parseurl: [ '1.3.3' ],
+34 silly audit   'path-to-regexp': [ '8.4.2' ],
+34 silly audit   picomatch: [ '4.0.5' ],
+34 silly audit   'prebuild-install': [ '7.1.3' ],
+34 silly audit   'proc-log': [ '6.1.0' ],
+34 silly audit   'proxy-addr': [ '2.0.7' ],
+34 silly audit   pump: [ '3.0.4' ],
+34 silly audit   qs: [ '6.15.3' ],
+34 silly audit   'range-parser': [ '1.3.0' ],
+34 silly audit   'raw-body': [ '3.0.2' ],
+34 silly audit   rc: [ '1.2.8' ],
+34 silly audit   'readable-stream': [ '3.6.2' ],
+34 silly audit   router: [ '2.2.0' ],
+34 silly audit   'safe-buffer': [ '5.2.1' ],
+34 silly audit   'safer-buffer': [ '2.1.2' ],
+34 silly audit   semver: [ '7.8.5' ],
+34 silly audit   send: [ '1.2.1' ],
+34 silly audit   'serve-static': [ '2.2.1' ],
+34 silly audit   setprototypeof: [ '1.2.0' ],
+34 silly audit   'side-channel': [ '1.1.1' ],
+34 silly audit   'side-channel-list': [ '1.0.1' ],
+34 silly audit   'side-channel-map': [ '1.0.1' ],
+34 silly audit   'side-channel-weakmap': [ '1.0.2' ],
+34 silly audit   'simple-concat': [ '1.0.1' ],
+34 silly audit   'simple-get': [ '4.0.1' ],
+34 silly audit   sqlite3: [ '6.0.1' ],
+34 silly audit   statuses: [ '2.0.2' ],
+34 silly audit   streamsearch: [ '1.1.0' ],
+34 silly audit   string_decoder: [ '1.3.0' ],
+34 silly audit   'strip-json-comments': [ '2.0.1' ],
+34 silly audit   tar: [ '7.5.22' ],
+34 silly audit   'tar-fs': [ '2.1.5' ],
+34 silly audit   'tar-stream': [ '2.2.0' ],
+34 silly audit   tinyglobby: [ '0.2.17' ],
+34 silly audit   toidentifier: [ '1.0.1' ],
+34 silly audit   'tunnel-agent': [ '0.6.0' ],
+34 silly audit   typedarray: [ '0.0.6' ],
+34 silly audit   undici: [ '6.28.0' ],
+34 silly audit   unpipe: [ '1.0.0' ],
+34 silly audit   'util-deprecate': [ '1.0.2' ],
+34 silly audit   uuid: [ '14.0.1' ],
+34 silly audit   vary: [ '1.1.2' ],
+34 silly audit   which: [ '6.0.1' ],
+34 silly audit   wrappy: [ '1.0.2' ],
+34 silly audit   yallist: [ '5.0.0' ],
+34 silly audit   'express-rate-limit': [ '8.6.2' ],
+34 silly audit   helmet: [ '8.3.0' ],
+34 silly audit   'ip-address': [ '10.5.0' ]
+34 silly audit }
+35 http cache ip-address@https://registry.npmjs.org/ip-address/-/ip-address-10.5.0.tgz 0ms (cache hit)
+36 http cache helmet@https://registry.npmjs.org/helmet/-/helmet-8.3.0.tgz 0ms (cache hit)
+37 http cache express-rate-limit@https://registry.npmjs.org/express-rate-limit/-/express-rate-limit-8.6.2.tgz 0ms (cache hit)
+38 silly tarball no local data for ip-address@https://registry.npmjs.org/ip-address/-/ip-address-10.5.0.tgz. Extracting by manifest.
+39 silly tarball no local data for helmet@https://registry.npmjs.org/helmet/-/helmet-8.3.0.tgz. Extracting by manifest.
+40 silly tarball no local data for express-rate-limit@https://registry.npmjs.org/express-rate-limit/-/express-rate-limit-8.6.2.tgz. Extracting by manifest.
+41 http fetch GET 200 https://registry.npmjs.org/helmet/-/helmet-8.3.0.tgz 196ms (cache miss)
+42 http fetch GET 200 https://registry.npmjs.org/express-rate-limit/-/express-rate-limit-8.6.2.tgz 197ms (cache miss)
+43 http fetch GET 200 https://registry.npmjs.org/ip-address/-/ip-address-10.5.0.tgz 203ms (cache miss)
+44 http fetch POST 200 https://registry.npmjs.org/-/npm/v1/security/advisories/bulk 212ms
+45 silly audit report {}
+46 silly ADD node_modules/ip-address
+47 silly ADD node_modules/helmet
+48 silly ADD node_modules/express-rate-limit
+49 warn allow-scripts 1 package has install scripts not yet covered by allowScripts:
+49 warn allow-scripts   sqlite3@6.0.1 (install: node-gyp rebuild)
+49 warn allow-scripts
+49 warn allow-scripts Run `npm approve-scripts --allow-scripts-pending` to review, or `npm approve-scripts <pkg>` to allow.
+50 verbose cwd /Users/wisnuwar/Documents/Coding/Tartun V2
+51 verbose os Darwin 25.6.0
+52 verbose node v24.19.0
+53 verbose npm  v11.17.0
+54 verbose exit 0
+55 info ok

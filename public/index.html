@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FKOF By -F-</title>
+    
+    <link rel="apple-touch-icon" sizes="180x180" href="/png/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/png/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/png/favicon-16x16.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <meta name="msapplication-TileColor" content="#0f172a">
+    <meta name="theme-color" content="#0f172a">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-screen text-sm">
+
+    <div id="image-bg-container"></div>
+
+    <div id="body-wrapper">
+        <nav id="main-nav" class="glass-panel w-64 flex-shrink-0 flex flex-col p-4 space-y-4 overflow-y-auto">
+            <div class="text-center py-4">
+                <h1 id="desktop-logo-text" class="glitch-container text-4xl" data-text="FKOF"></h1>
+                <p id="desktop-logo-description" class="text-xs text-text-muted mt-2 font-mono tracking-wider"></p>
+            </div>
+
+            <div class="flex-grow">
+                <h2 class="text-xs font-bold uppercase text-text-muted mb-2 px-2">Laporan</h2>
+                <div id="public-menu" class="space-y-1">
+                    <button data-view="dashboard" class="btn-nav active">
+                        <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                        <span>Dashboard</span>
+                    </button>
+                    <button data-view="summary" class="btn-nav">
+                        <i data-lucide="table-2" class="w-5 h-5"></i>
+                        <span>Tabel Ringkasan</span>
+                    </button>
+                    <button data-view="charts" class="btn-nav">
+                        <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
+                        <span>Chart Data</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="protected-menu-wrapper" class="flex-grow">
+                <div id="protected-menu-container" class="hidden">
+                    <h2 class="text-xs font-bold uppercase text-text-muted my-2 px-2">Manajemen</h2>
+                    <div id="protected-menu" class="space-y-1">
+                        <button data-view="analysis" class="btn-nav" data-role="Auditor,OED,Master,Admin">
+                            <i data-lucide="search-check" class="w-5 h-5"></i>
+                            <span>Analisis Data</span>
+                        </button>
+                        <button data-view="input" class="btn-nav" data-role="OED,Master,Admin">
+                            <i data-lucide="plus-square" class="w-5 h-5"></i>
+                            <span>Input Data</span>
+                        </button>
+                        <button data-view="settings" class="btn-nav" data-role="Master">
+                            <i data-lucide="settings-2" class="w-5 h-5"></i>
+                            <span>Pengaturan</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="public-log-panel" class="mt-auto pt-4 border-t border-border-color">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-xs font-bold uppercase text-text-muted px-2">Aktivitas Terkini</h2>
+                    <button id="view-all-logs-btn" class="hidden text-text-secondary hover:text-color-primary transition-colors pr-2">
+                        <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                <div id="public-log-list" class="space-y-2 text-xs px-2"></div>
+            </div>
+
+            <div class="mt-auto pt-4 border-t border-border-color">
+                <div id="status-display" class="text-xs text-center text-text-secondary mb-2">Status: Idle</div>
+                <div class="flex justify-around items-center">
+                    <button id="theme-toggle" class="btn btn-secondary p-2">
+                        <i id="theme-toggle-icon" data-lucide="moon" class="w-5 h-5"></i>
+                    </button>
+                    <button id="footer-login-btn" class="btn btn-secondary p-2">
+                        <i data-lucide="log-in" class="w-5 h-5"></i>
+                    </button>
+                    <button id="footer-user-mgmt-btn" data-view="user-management" class="btn btn-secondary p-2 hidden">
+                        <i data-lucide="users" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper">
+            <div id="app-container" class="relative z-10 flex flex-col gap-4">
+                <main class="flex-1 flex flex-col min-h-0">
+                    <div id="sticky-filter-wrapper" class="relative sticky top-0 z-20">
+                        <div id="filter-panel" class="glass-panel p-4 flex-shrink-0">
+                            <div class="grid grid-cols-12 gap-4 items-end">
+                                
+                                <div class="col-span-4">
+                                    <label for="filter-search" class="text-xs font-bold text-text-secondary">Cari</label>
+                                    <div class="relative w-full mt-1">
+                                        <input type="text" id="filter-search" name="filter-search" class="form-input w-full pr-10" placeholder="Cari nama, keterangan, jumlah...">
+                                        <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                            <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="col-span-2">
+                                    <label for="filter-start-date" class="text-xs font-bold text-text-secondary">Tanggal Mulai</label>
+                                    <div class="relative w-full mt-1">
+                                        <input type="date" id="filter-start-date" name="filter-start-date" class="form-input w-full pr-10">
+                                        <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                            <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="col-span-2">
+                                    <label for="filter-end-date" class="text-xs font-bold text-text-secondary">Tanggal Selesai</label>
+                                    <div class="relative w-full mt-1">
+                                        <input type="date" id="filter-end-date" name="filter-end-date" class="form-input w-full pr-10">
+                                        <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                            <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div id="filter-preset-panel" class="hidden col-span-2">
+                                     <div>
+                                        <label id="preset-label" for="preset-dropdown-toggle" class="text-xs font-bold text-text-secondary">Preset</label>
+                                        <div class="relative mt-1">
+                                            <button id="preset-dropdown-toggle" class="form-input w-full flex justify-between items-center text-left">
+                                                <span id="preset-dropdown-label">Preset</span>
+                                                <i data-lucide="chevron-down" class="w-4 h-4 transition-transform"></i>
+                                            </button>
+                                            <div id="preset-dropdown-menu" class="absolute hidden mt-2 w-full bg-bg-dropdown border border-border-color rounded-lg shadow-lg z-20 p-2 space-y-2">
+                                                <div id="preset-list-container">
+                                                </div>
+                                                <div class="pt-2 border-t border-border-color">
+                                                    <div class="flex items-center gap-2">
+                                                        <label for="new-preset-name-input" class="sr-only">Nama Preset Baru</label>
+                                                        <input type="text" id="new-preset-name-input" class="form-input form-input-sm flex-grow" placeholder="Nama Preset Baru...">
+                                                        <button id="save-new-preset-btn" class="btn btn-primary btn-sm p-1.5 flex-shrink-0" aria-label="Simpan Preset Baru">
+                                                            <i data-lucide="save" class="w-4 h-4"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-span-2 flex items-end">
+                                    <div class="flex w-full gap-2">
+                                        <div class="flex-grow">
+                                            <label for="filter-type" class="sr-only">Filter Tipe Data</label>
+                                            <select id="filter-type" name="filter-type" class="form-select w-full h-full" title="Filter Tipe Data">
+                                                <option value="all" data-short-text="S">Semua</option>
+                                                <option value="MANUAL" data-short-text="M">Manual</option>
+                                                <option value="TIKET" data-short-text="T">Tiket</option>
+                                            </select>
+                                        </div>
+                                        <button id="reset-btn" class="btn btn-secondary p-2" title="Reset Filter">
+                                            <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="filter-toggle-handle" class="absolute bottom-0 left-1/2 -translate-x-1/2 translate-y-full w-auto cursor-pointer" title="Toggle Filter">
+                            <div class="glass-panel !rounded-t-none !border-t-0 px-4 py-1 hover:bg-color-primary/20 transition-colors">
+                                <i data-lucide="chevron-up" class="w-5 h-5 text-text-secondary transition-transform"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="content-view" class="glass-panel flex-1"></div>
+                </main>
+            </div>
+        </div>
+    </div>
+    
+    <div id="login-modal" class="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center hidden">
+        <div class="glass-panel p-8 rounded-lg w-full max-w-sm text-center relative">
+            <button id="close-login-modal-btn" class="absolute top-4 right-4 text-text-secondary hover:text-color-primary transition-colors">
+                <i data-lucide="x" class="w-6 h-6"></i>
+            </button>
+            <h2 class="glitch-container text-2xl mb-4" data-text="Authentication"></h2>
+            <p class="text-text-secondary mb-6">Masukkan kredensial untuk mengakses menu.</p>
+            <div class="space-y-4">
+                <div class="relative w-full">
+                    <label for="login-username" class="sr-only">Email</label>
+                    <input type="email" id="login-username" name="login-username" class="form-input w-full text-center pr-10" placeholder="email@example.com">
+                    <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                        <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                    </button>
+                </div>
+                <div class="relative w-full">
+                    <label for="login-password" class="sr-only">Password</label>
+                    <input type="password" id="login-password" name="login-password" class="form-input w-full text-center pr-10" placeholder="********">
+                    <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                        <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                    </button>
+                </div>
+            </div>
+            <button id="login-btn" class="btn btn-primary w-full mt-6">Login</button>
+            <p id="login-error" class="text-color-danger text-xs mt-4 h-4"></p>
+        </div>
+    </div>
+    <div id="generic-modal" class="fixed inset-0 bg-black bg-opacity-80 z-50 flex items-center justify-center hidden">
+        <div id="generic-modal-panel" class="glass-panel p-8 rounded-lg w-full max-w-md text-left relative">
+            <h2 id="generic-modal-title" class="text-2xl font-display mb-2 text-color-primary"></h2>
+            <p id="generic-modal-message" class="text-text-secondary mb-6 whitespace-pre-wrap"></p>
+            <div id="generic-modal-content-wrapper" class="max-h-[70vh] overflow-y-auto">
+                <div id="generic-modal-content" class="mb-6"></div>
+            </div>
+            <div id="generic-modal-footer">
+                <button id="generic-modal-close-btn" class="btn btn-primary w-full mt-6">Tutup</button>
+            </div>
+        </div>
+    </div>
+    <div id="loader" class="fixed inset-0 bg-black bg-opacity-95 z-50 flex flex-col items-center justify-center">
+        <svg class="spinner w-16 h-16 text-color-primary" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p id="loader-text" class="mt-4 text-lg font-display text-text-primary" data-text="Inisialisasi Sistem..."></p>
+    </div>
+    
+    <template id="dashboard-template">
+        <div class="animate-fade-in flex flex-col h-full">
+            <div class="dashboard-header flex justify-end items-center flex-shrink-0 mb-4">
+                <button id="configure-widgets-btn" class="btn btn-secondary btn-sm flex items-center gap-2" style="display: none;">
+                    <i data-lucide="layout-template" class="w-4 h-4"></i>
+                    Atur Widget
+                </button>
+            </div>
+            <div id="dashboard-grid" class="grid gap-4 flex-1 overflow-y-auto">
+            </div>
+        </div>
+    </template>
+
+    <template id="summary-template">
+        <div class="animate-fade-in flex flex-col h-full gap-4">
+            <div class="flex-shrink-0">
+                <h2 class="text-xl font-display mb-2">Ringkasan Tipe & Data</h2>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="glass-panel p-4">
+                        <h3 class="font-bold text-color-primary">TOTAL BIAYA ADMIN (MANUAL)</h3>
+                        <p class="text-2xl font-display mt-2" id="summary-info-manual-total">Rp 0</p>
+                        <p class="text-sm text-text-secondary" id="summary-info-manual-count">0 Transaksi</p>
+                    </div>
+                    <div class="glass-panel p-4">
+                        <h3 class="font-bold text-color-accent">TOTAL BIAYA ADMIN (TIKET)</h3>
+                        <p class="text-2xl font-display mt-2" id="summary-info-tiket-total">Rp 0</p>
+                        <p class="text-sm text-text-secondary" id="summary-info-tiket-count">0 Transaksi</p>
+                    </div>
+                    <div class="glass-panel p-4">
+                        <h3 class="font-bold text-color-warning">DATA TERFILTER</h3>
+                        <p class="text-2xl font-display mt-2" id="summary-info-filtered-count">0</p>
+                        <p class="text-sm text-text-secondary" id="summary-info-total-count">dari 0 total data</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="summary-combined-container" class="glass-panel p-2 flex flex-col flex-1 min-h-0">
+                <div class="flex justify-between items-center mb-2 flex-shrink-0 px-2">
+                    <h2 class="text-xl font-display">Ringkasan Gabungan</h2>
+                    <div class="flex gap-2">
+                        <div class="relative" id="summary-export-dropdown-container">
+                            <button id="summary-export-toggle" class="btn btn-secondary btn-sm flex items-center gap-2">
+                                <i data-lucide="download" class="w-4 h-4"></i>
+                                <span>Ekspor</span>
+                                <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                            </button>
+                            <div id="summary-export-menu" class="absolute hidden right-0 mt-2 w-48 bg-bg-dropdown border border-border-color rounded-lg shadow-lg z-20 p-2 space-y-1">
+                                <button id="export-summary-csv" class="w-full btn-nav text-sm !justify-start">Ekspor CSV</button>
+                                <button id="export-summary-xlsx" class="w-full btn-nav text-sm !justify-start">Ekspor Excel</button>
+                                <button id="export-summary-json" class="w-full btn-nav text-sm !justify-start">Ekspor JSON</button>
+                                <button id="export-summary-pdf" class="w-full btn-nav text-sm !justify-start">Ekspor PDF</button>
+                                <button id="export-summary-copy" class="w-full btn-nav text-sm !justify-start">Salin ke Clipboard</button>
+                            </div>
+                        </div>
+                        <button id="toggle-column-settings" class="btn btn-primary btn-sm flex items-center gap-2">
+                            <i data-lucide="sliders-horizontal" class="w-4 h-4"></i> Atur Kolom
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="column-settings-panel" class="p-4 mb-2 hidden flex-shrink-0 bg-black/20 rounded-lg">
+                    <h3 class="font-bold text-color-primary mb-2">Tampilkan & Urutkan Kolom Publik</h3>
+                    <p class="text-xs text-text-secondary mb-4">Seret untuk mengurutkan. Pengaturan ini hanya untuk tampilan publik.</p>
+                    <ul id="column-settings-list" class="space-y-2"></ul>
+                    <div class="flex gap-2 mt-4">
+                        <button id="save-column-settings" class="btn btn-primary w-full">Terapkan & Simpan</button>
+                        <button id="cancel-column-settings" class="btn btn-secondary w-full">Batal</button>
+                    </div>
+                </div>
+
+                <div id="summary-table-header" class="flex-shrink-0">
+                </div>
+
+                <div id="summary-table-body-wrapper" class="overflow-y-auto flex-grow">
+                    <div id="summary-scroller" class="relative w-full">
+                        <div id="summary-table-body" class="absolute top-0 left-0 w-full">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="summary-table-footer" class="flex-shrink-0 border-t border-border-color">
+                </div>
+            </div>
+
+        </div>
+    </template>
+
+    <template id="charts-template">
+        <div class="animate-fade-in flex flex-col h-full">
+            <div class="flex justify-between items-start mb-4 flex-shrink-0">
+                <div>
+                    <h2 id="charts-app-name" class="text-2xl font-display">Grafik & Diagram</h2>
+                    <p id="charts-date-range" class="text-sm text-text-secondary mt-1">Memuat rentang tanggal...</p>
+                </div>
+                <div class="relative" id="charts-export-dropdown-container">
+                    <button id="charts-export-toggle" class="btn btn-primary flex items-center gap-2">
+                        <i data-lucide="download-cloud" class="w-5 h-5"></i>
+                        <span>Unduh Laporan</span>
+                        <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                    </button>
+                    <div id="charts-export-menu" class="absolute hidden right-0 mt-2 w-48 bg-bg-dropdown border border-border-color rounded-lg shadow-lg z-20 p-2 space-y-1">
+                        <button id="download-charts-png" class="w-full btn-nav text-sm !justify-start">Unduh PNG</button>
+                        <button id="download-charts-jpeg" class="w-full btn-nav text-sm !justify-start">Unduh JPEG</button>
+                        <button id="download-charts-pdf" class="w-full btn-nav text-sm !justify-start">Unduh PDF</button>
+                    </div>
+                </div>
+            </div>
+    
+            <div id="charts-container" class="grid grid-cols-2 gap-6 flex-grow overflow-y-auto">
+                <div class="glass-panel p-4 flex flex-col">
+                    <h2 class="text-xl font-display mb-4">Komisi Outlet (Manual vs Tiket)</h2>
+                    <div class="relative flex-grow min-h-[300px]"><canvas id="user-bar-chart"></canvas></div>
+                </div>
+                <div class="glass-panel p-4 flex flex-col">
+                     <h2 class="text-xl font-display mb-4">Distribusi Transaksi</h2>
+                     <div class="grid grid-cols-5 gap-4 flex-grow">
+                        <div class="col-span-3 relative min-h-[300px]">
+                            <canvas id="type-pie-chart"></canvas>
+                        </div>
+                        <div id="type-stats-panel" class="col-span-2 flex flex-col justify-center space-y-4"></div>
+                     </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="analysis-template">
+        <div class="animate-fade-in flex flex-col h-full">
+            <div class="flex justify-between items-start mb-4 flex-shrink-0">
+                <div>
+                    <h2 id="analysis-title" class="text-2xl font-display">Pencarian & Analisis Data</h2>
+                    <p id="analysis-description" class="text-sm text-text-secondary mt-1">Gunakan filter global atau per kolom untuk menyaring data.</p>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="relative" id="analysis-export-dropdown-container">
+                        <button id="analysis-export-toggle" class="btn btn-secondary flex items-center gap-2">
+                            <i data-lucide="download" class="w-4 h-4"></i>
+                            <span>Ekspor</span>
+                            <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                        </button>
+                        <div id="analysis-export-menu" class="absolute hidden right-0 mt-2 w-48 bg-bg-dropdown border border-border-color rounded-lg shadow-lg z-20 p-2 space-y-1">
+                            <button id="export-analysis-csv" class="w-full btn-nav text-sm !justify-start">Ekspor CSV</button>
+                            <button id="export-analysis-xlsx" class="w-full btn-nav text-sm !justify-start">Ekspor Excel</button>
+                            <button id="export-analysis-json" class="w-full btn-nav text-sm !justify-start">Ekspor JSON</button>
+                        </div>
+                    </div>
+                    <button id="bulk-action-btn" class="btn btn-secondary flex items-center gap-2" style="display: none;">
+                        <i data-lucide="edit" class="w-4 h-4"></i>
+                        <span id="bulk-action-btn-text">Ubah Data</span>
+                    </button>
+                    <button id="delete-selected-btn" class="btn btn-danger flex items-center gap-2" style="display: none;">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <span id="delete-btn-text">Hapus Data</span>
+                    </button>
+                    <button id="audit-mode-toggle-btn" class="btn btn-secondary flex items-center gap-2" style="display: none;">
+                        <i data-lucide="shield-check" class="w-5 h-5"></i>
+                        <span>Audit</span>
+                    </button>
+                    <button id="all-data-mode-toggle-btn" class="btn btn-secondary flex items-center gap-2">
+                        <i data-lucide="database" class="w-5 h-5"></i>
+                        <span>Semua</span>
+                    </button>
+                </div>
+            </div>
+    
+            <div id="analysis-stats-panel" class="grid grid-cols-4 gap-4 mb-4 glass-panel p-4 flex-shrink-0">
+                <div class="border-l-4 border-color-primary pl-3">
+                    <h4 class="text-xs font-bold text-text-secondary uppercase">Hasil Ditampilkan</h4>
+                    <p id="stats-displayed-count" class="text-2xl font-display">0 / 0</p>
+                </div>
+                <div class="border-l-4 border-color-success pl-3">
+                    <h4 class="text-xs font-bold text-text-secondary uppercase">Total Nilai</h4>
+                    <p id="stats-total-value" class="text-2xl font-display">Rp 0</p>
+                </div>
+                <div class="border-l-4 border-color-accent pl-3">
+                    <h4 class="text-xs font-bold text-text-secondary uppercase">Rata-Rata Nilai</h4>
+                    <p id="stats-avg-value" class="text-2xl font-display">Rp 0</p>
+                </div>
+                <div class="border-l-4 border-color-warning pl-3">
+                    <h4 class="text-xs font-bold text-text-secondary uppercase">Komposisi Tipe</h4>
+                    <p id="stats-type-composition" class="text-lg font-display">Manual: 0 | Tiket: 0</p>
+                </div>
+            </div>
+            
+            <div id="analysis-virtual-scroll-wrapper" class="flex flex-col flex-1 min-h-0">
+                <div class="glass-panel p-2 flex flex-col h-full overflow-hidden">
+                    <div id="analysis-grid-header" class="flex-shrink-0">
+                    </div>
+                    
+                    <div id="analysis-table-container" class="overflow-y-auto flex-grow mt-2">
+                        <div id="analysis-scroller" class="relative w-full">
+                            <div id="analysis-grid-body" class="absolute top-0 left-0 w-full"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="analysis-audit-wrapper" class="hidden flex-col flex-1 min-h-0">
+                <div class="glass-panel p-2 flex flex-col h-full overflow-hidden">
+                </div>
+            </div>
+            
+        </div>
+    </template>
+
+    <template id="input-template">
+        <div class="animate-fade-in flex flex-col h-full gap-4">
+            <div class="flex-shrink-0">
+                <h2 class="text-2xl font-display">Input & Validasi Data</h2>
+            </div>
+    
+            <div id="input-content-wrapper" class="flex-1 grid grid-cols-1 gap-6 min-h-0">
+                
+                <div id="input-panels-container" class="flex flex-col gap-6 lg:col-span-1 overflow-y-auto min-h-0 pr-1">
+                    <div class="glass-panel p-4">
+                        <div class="flex justify-between items-center">
+                             <h3 class="font-bold text-color-primary">Opsi 1: Paste dari Spreadsheet</h3>
+                             <button id="download-template-btn" class="btn btn-secondary btn-sm flex items-center gap-2">
+                                <i data-lucide="download" class="w-4 h-4"></i> Unduh Template
+                            </button>
+                        </div>
+                        <p id="paste-instructions" class="text-xs text-text-primary whitespace-pre-wrap mt-2"></p>
+                        <div class="relative w-full mt-2">
+                            <label for="data-input-area" class="sr-only">Area Input Data</label>
+                            <textarea id="data-input-area" name="data-input-area" class="form-textarea w-full h-40 pr-10" placeholder="Paste data dari spreadsheet di sini..."></textarea>
+                            <button class="absolute top-3 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                            </button>
+                        </div>
+                    </div>
+    
+                    <div class="glass-panel p-4">
+                         <h3 class="font-bold text-color-primary">Opsi 2: Unggah File CSV</h3>
+                         <p id="csv-instructions" class="text-xs text-text-primary mt-2"></p>
+                         <div class="mt-2">
+                            <label for="csv-file-input" class="sr-only">Pilih File CSV</label>
+                            <input type="file" id="csv-file-input" name="csv-file-input" class="hidden" accept=".csv">
+                            <button id="upload-csv-btn" class="btn btn-secondary w-full flex items-center justify-center gap-2">
+                                <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+                                <span>Pilih File CSV</span>
+                            </button>
+                            <p id="csv-file-name" class="text-xs text-center text-text-muted mt-2 truncate"></p>
+                         </div>
+                    </div>
+    
+                    <button id="process-data-btn" class="btn btn-primary w-full text-lg">
+                        <i data-lucide="play-circle" class="w-6 h-6"></i>
+                        Proses & Validasi Data
+                    </button>
+                    
+                    <div class="glass-panel p-4 flex flex-col">
+                        <h3 class="font-bold text-color-primary mb-4">Input Tunggal (Transaksi Manual)</h3>
+                        <form id="single-entry-form" class="space-y-3 flex-grow flex flex-col">
+                            <div>
+                                <label for="single-entry-date" class="text-xs font-bold text-text-secondary">Tanggal</label>
+                                <input type="date" id="single-entry-date" name="single-entry-date" class="form-input w-full mt-1">
+                            </div>
+                            <div>
+                                <label for="single-entry-name" class="text-xs font-bold text-text-secondary">Nama</label>
+                                <input type="text" id="single-entry-name" name="single-entry-name" class="form-input w-full mt-1" placeholder="e.g., PLC120 CK">
+                            </div>
+                            <div>
+                                <label for="single-entry-amount" class="text-xs font-bold text-text-secondary">Jumlah</label>
+                                <input type="number" id="single-entry-amount" name="single-entry-amount" class="form-input w-full mt-1" placeholder="e.g., 500000">
+                            </div>
+                            <div>
+                                <label for="single-entry-desc" class="text-xs font-bold text-text-secondary">Keterangan</label>
+                                <input type="text" id="single-entry-desc" name="single-entry-desc" class="form-input w-full mt-1" placeholder="e.g., QR TARTUN">
+                            </div>
+                            <div class="mt-auto pt-4">
+                                <button type="submit" class="btn btn-primary w-full">Tambah Transaksi</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+    
+                <div id="staging-area" class="hidden lg:col-span-2 flex flex-col min-h-0">
+                    <div class="flex flex-col h-full gap-4">
+                        <div class="glass-panel p-4 flex-shrink-0">
+                            <h2 class="text-xl font-display mb-2">Pra-Tinjau & Koreksi Data</h2>
+                            <div id="staging-stats" class="grid grid-cols-4 gap-x-4 gap-y-2 text-sm">
+                                <span class="text-text-secondary">Total Baris:</span>
+                                <span id="staging-total-count" class="font-display text-right">0</span>
+                                <span class="text-text-secondary text-color-success">Siap Kirim:</span>
+                                <span id="staging-valid-count" class="font-display text-color-success text-right">0</span>
+                                <span class="text-text-secondary text-color-warning">Duplikat:</span>
+                                <span id="staging-duplicate-count" class="font-display text-color-warning text-right">0</span>
+                                <span class="text-text-secondary text-color-danger">Error:</span>
+                                <span id="staging-error-count" class="font-display text-color-danger text-right">0</span>
+                            </div>
+                            <div id="staging-filter-controls" class="flex items-center gap-2 border-b border-t border-border-color py-2 my-2">
+                                <span class="text-xs font-bold text-text-secondary">Tampilkan:</span>
+                                <button data-status-filter="all" class="btn btn-secondary btn-sm staging-filter-btn active">Semua</button>
+                                <button data-status-filter="valid" class="btn btn-secondary btn-sm staging-filter-btn flex items-center gap-1.5">
+                                    <i data-lucide="check-circle-2" class="w-4 h-4 text-color-success"></i> Valid
+                                </button>
+                                <button data-status-filter="duplicate" class="btn btn-secondary btn-sm staging-filter-btn flex items-center gap-1.5">
+                                    <i data-lucide="alert-triangle" class="w-4 h-4 text-color-warning"></i> Duplikat
+                                </button>
+                                <button data-status-filter="error" class="btn btn-secondary btn-sm staging-filter-btn flex items-center gap-1.5">
+                                    <i data-lucide="x-circle" class="w-4 h-4 text-color-danger"></i> Error
+                                </button>
+                                <button id="delete-all-errors-btn" class="btn btn-danger btn-sm flex items-center gap-1.5 ml-auto" style="display: none;">
+                                    <i data-lucide="trash-2" class="w-4 h-4"></i> Hapus Semua Error
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="staging-actions-panel flex-shrink-0">
+                            <button id="undo-last-import-btn" class="btn btn-danger mr-auto hidden">
+                                <i data-lucide="undo-2" class="w-4 h-4"></i> Batalkan Impor Terakhir
+                            </button>
+                            <button id="cancel-staging-btn" class="btn btn-secondary">Batalkan & Ulangi</button>
+                            <button id="submit-valid-data-btn" class="btn btn-primary" disabled>
+                                Kirim <span id="submit-valid-count">0</span> Data Valid
+                            </button>
+                        </div>
+    
+                        <div class="glass-panel p-2 flex flex-col flex-1 min-h-0">
+                            <div id="staging-table-head-wrapper" class="flex-shrink-0 border-b border-border-color">
+                            </div>
+                            <div id="staging-table-body-wrapper" class="overflow-auto flex-grow">
+                                <div id="staging-scroller" class="relative w-full">
+                                    <div id="staging-table-body" class="absolute top-0 left-0 w-full">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+    
+
+    <template id="user-management-template">
+        <div class="animate-fade-in flex flex-col h-full space-y-4">
+            <div class="flex justify-between items-center flex-shrink-0">
+                <h2 class="text-2xl font-display">Manajemen Pengguna</h2>
+                <div id="user-management-actions" class="flex gap-2">
+                    <button id="add-user-btn" class="btn btn-primary btn-sm" style="display: none;">
+                        <i data-lucide="user-plus" class="w-4 h-4"></i>
+                        <span>Tambah</span>
+                    </button>
+                    <button id="my-profile-btn" class="btn btn-secondary btn-sm" style="display: none;">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i>
+                        <span>Profil</span>
+                    </button>
+                    <button id="logout-btn" class="btn btn-danger btn-sm">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+
+            <div id="user-stats-panel" class="grid grid-cols-4 gap-4">
+                <div class="glass-panel p-4 border-l-4 border-color-primary">
+                    <h3 class="text-sm font-bold text-text-secondary uppercase">Total Pengguna</h3>
+                    <p id="stats-total-users" class="text-3xl font-display mt-2">0</p>
+                </div>
+                <div class="glass-panel p-4 border-l-4 border-color-success">
+                    <h3 class="text-sm font-bold text-text-secondary uppercase">Pengguna Aktif</h3>
+                    <p id="stats-active-users" class="text-3xl font-display mt-2">0</p>
+                </div>
+                <div class="glass-panel p-4 border-l-4 border-color-danger">
+                    <h3 class="text-sm font-bold text-text-secondary uppercase">Pengguna Non-Aktif</h3>
+                    <p id="stats-inactive-users" class="text-3xl font-display mt-2">0</p>
+                </div>
+                <div class="glass-panel p-4">
+                    <h3 class="text-sm font-bold text-text-secondary uppercase mb-2">Distribusi Role</h3>
+                    <div class="relative h-32">
+                        <canvas id="user-role-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 flex-1 flex flex-col min-h-0">
+                <div class="flex justify-between items-center mb-3 border-b border-border-color pb-2 flex-shrink-0">
+                    <h3 class="text-lg font-display text-color-primary">Daftar Pengguna</h3>
+                    <div class="relative w-full max-w-xs">
+                        <label for="user-search-input" class="sr-only">Cari Pengguna</label>
+                        <input type="text" id="user-search-input" class="form-input w-full pr-10" placeholder="Cari berdasarkan email atau role...">
+                        <i data-lucide="search" class="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-text-muted"></i>
+                    </div>
+                </div>
+                <div id="user-management-table-wrapper" class="flex-1 flex flex-col min-h-0">
+                    <div id="user-management-table-header" class="flex-shrink-0">
+                    </div>
+                    <div id="user-management-scroll-container" class="overflow-y-auto flex-1">
+                        <div id="user-management-scroller" class="relative w-full">
+                            <div id="user-management-table-body" class="absolute top-0 left-0 w-full">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="settings-template">
+        <div class="animate-fade-in flex flex-col h-full">
+            <div id="settings-tabs-container" class="flex-shrink-0">
+                <div class="border-b border-border-color">
+                    <nav id="settings-nav" class="flex -mb-px space-x-6 px-6" aria-label="Tabs">
+                        <button data-tab="umum" class="settings-tab-btn active">
+                            <i data-lucide="app-window" class="w-5 h-5"></i>
+                            <span>Umum</span>
+                        </button>
+                        <button data-tab="data" class="settings-tab-btn">
+                            <i data-lucide="database-zap" class="w-5 h-5"></i>
+                            <span>Data</span>
+                        </button>
+                        <button data-tab="bisnis" class="settings-tab-btn">
+                            <i data-lucide="briefcase" class="w-5 h-5"></i>
+                            <span>Bisnis</span>
+                        </button>
+                        <button data-tab="sistem" class="settings-tab-btn">
+                            <i data-lucide="server-cog" class="w-5 h-5"></i>
+                            <span>Sistem</span>
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <div id="settings-content-area" class="flex-1 p-6 flex flex-col min-h-0">
+                
+                <div id="settings-accordion-container" class="space-y-6 overflow-y-auto">
+                    <div id="settings-tab-content-umum" data-content="umum" class="settings-tab-content space-y-4">
+                        
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="image" class="w-5 h-5 text-color-primary"></i> Pengaturan Tampilan & Visual Utama</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color">
+                                    <div class="grid grid-cols-2 gap-x-8 gap-y-4">
+                                        <div>
+                                            <label for="setting-logo-text" class="font-bold text-sm">Teks Logo</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="text" id="setting-logo-text" name="setting-logo-text" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label for="setting-logo-description" class="font-bold text-sm">Deskripsi Logo</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="text" id="setting-logo-description" name="setting-logo-description" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <label for="setting-blur" class="font-bold text-sm flex justify-between">
+                                                <span>Efek Blur Panel</span>
+                                                <span id="setting-blur-value" class="text-color-primary">3px</span>
+                                            </label>
+                                            <input type="range" id="setting-blur" name="setting-blur" min="0" max="30" step="1" class="w-full mt-1">
+                                        </div>
+                                        <!-- BARU: Pengaturan Tema Flat -->
+                                        <div class="col-span-2 flex items-center justify-between">
+                                            <label for="setting-flat-theme" class="font-bold text-sm">
+                                                <span>Aktifkan Tema Flat</span>
+                                                <p class="text-xs text-text-secondary font-normal">Gunakan tampilan solid tanpa efek blur.</p>
+                                            </label>
+                                            <label class="relative inline-flex items-center cursor-pointer">
+                                                <input type="checkbox" id="setting-flat-theme" class="sr-only peer">
+                                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-color-primary"></div>
+                                            </label>
+                                        </div>
+                                        <!-- AKHIR: Pengaturan Tema Flat -->
+                                        <div id="setting-bg-url-wrapper" class="col-span-2">
+                                            <label for="setting-bg-url" class="font-bold text-sm">URL Background Gambar</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="text" id="setting-bg-url" name="setting-bg-url" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <label for="setting-announcement-text" class="font-bold text-sm">Teks Pengumuman</label>
+                                            <div class="relative w-full mt-1">
+                                                <textarea id="setting-announcement-text" name="setting-announcement-text" class="form-textarea w-full h-24 pr-10" placeholder="Tulis pengumuman di sini..."></textarea>
+                                                <button class="absolute top-3 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-span-2 grid grid-cols-3 gap-4 border-t border-border-color pt-4 mt-4">
+                                            <div>
+                                                <label for="setting-announcement-font-size" class="font-bold text-sm">Ukuran Font</label>
+                                                <select id="setting-announcement-font-size" name="setting-announcement-font-size" class="form-select w-full mt-1">
+                                                    <option value="sm">Kecil</option>
+                                                    <option value="base">Normal</option>
+                                                    <option value="lg">Besar</option>
+                                                    <option value="xl">Sangat Besar</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label for="setting-announcement-font-weight" class="font-bold text-sm">Ketebalan</label>
+                                                <select id="setting-announcement-font-weight" name="setting-announcement-font-weight" class="form-select w-full mt-1">
+                                                    <option value="normal">Normal</option>
+                                                    <option value="medium">Medium</option>
+                                                    <option value="bold">Tebal</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label for="setting-announcement-color" class="font-bold text-sm">Warna Teks</label>
+                                                <select id="setting-announcement-color" name="setting-announcement-color" class="form-select w-full mt-1">
+                                                    <option value="default">Default</option>
+                                                    <option value="primary">Primary</option>
+                                                    <option value="accent">Accent</option>
+                                                    <option value="warning">Warning</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-span-3">
+                                                <label for="setting-announcement-animation" class="font-bold text-sm">Animasi</label>
+                                                <select id="setting-announcement-animation" name="setting-announcement-animation" class="form-select w-full mt-1">
+                                                    <option value="none">Tidak Ada</option>
+                                                    <option value="pulse">Berkedip Halus</option>
+                                                    <option value="glow">Berkilau</option>
+                                                    <option value="slide-in-left">Geser dari Kiri</option>
+                                                    <option value="slide-in-right">Geser dari Kanan</option>
+                                                    <option value="slide-in-top">Geser dari Atas</option>
+                                                    <option value="slide-in-bottom">Geser dari Bawah</option>
+                                                    <option value="fade-in">Fade In</option>
+                                                    <option value="bounce">Memantul</option>
+                                                    <option value="shake">Bergoyang</option>
+                                                    <option value="tada">Tada!</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="layout-dashboard" class="w-5 h-5 text-color-accent"></i> Pengaturan Widget Dashboard Publik</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                 <div class="p-6 border-t border-border-color">
+                                    <p class="text-xs text-text-secondary mb-4">Atur widget yang akan ditampilkan untuk pengguna yang tidak login. Seret untuk mengurutkan. Perubahan di sini akan disimpan secara global.</p>
+                                    <ul id="public-widget-settings-list" class="space-y-2"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="settings-tab-content-data" data-content="data" class="settings-tab-content space-y-4 hidden">
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="split" class="w-5 h-5 text-color-primary"></i> Pengaturan Parsing Dasar</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color space-y-6">
+                                    <div>
+                                        <label for="setting-paste-delimiter" class="font-bold text-sm">Separated Input Data</label>
+                                        <p class="text-xs text-text-secondary mt-1">Karakter pemisah untuk data yang di-paste dari spreadsheet. Gunakan `\t` untuk Tab.</p>
+                                        <input type="text" id="setting-paste-delimiter" name="setting-paste-delimiter" class="form-input w-full md:w-1/2 lg:w-1/4 mt-1">
+                                    </div>
+                                    <div>
+                                        <label for="setting-csv-delimiter" class="font-bold text-sm">Separated CSV</label>
+                                        <p class="text-xs text-text-secondary mt-1">Karakter pemisah untuk file .csv (upload, download template, ekspor).</p>
+                                        <input type="text" id="setting-csv-delimiter" name="setting-csv-delimiter" class="form-input w-full md:w-1/2 lg:w-1/4 mt-1">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="columns" class="w-5 h-5 text-color-primary"></i> Struktur Kolom & Format Tanggal</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color space-y-6">
+                                    <div>
+                                        <div class="font-bold text-sm">Format Urutan Kolom</div>
+                                        <p class="text-xs text-text-secondary mt-1">Seret kolom dari "Pilihan" ke "Format Anda" untuk menentukan urutan yang benar sesuai data sumber.</p>
+                                        <div class="grid grid-cols-2 gap-4 mt-2">
+                                            <div>
+                                                <h4 class="text-xs font-bold text-center text-text-muted mb-2">PILIHAN KOLOM</h4>
+                                                <div id="parsing-column-source" class="p-2 bg-black/20 rounded-lg min-h-[50px] flex flex-wrap gap-2 justify-center">
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <h4 class="text-xs font-bold text-center text-text-muted mb-2">FORMAT ANDA</h4>
+                                                <div id="parsing-column-destination" class="p-2 bg-black/20 rounded-lg min-h-[50px] border-2 border-dashed border-border-color flex flex-wrap gap-2">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-sm">Prioritas Format Tanggal</div>
+                                        <p class="text-xs text-text-secondary mt-1">Aktifkan format yang relevan dan seret untuk mengatur prioritas dari atas ke bawah.</p>
+                                        <ul id="parsing-date-formats-list" class="mt-2 space-y-2">
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                 <span class="flex items-center gap-3"><i data-lucide="key-round" class="w-5 h-5 text-color-primary"></i> Aturan Kata Kunci</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color space-y-6">
+                                    <div>
+                                        <div class="font-bold text-sm">Kata Kunci Pengecualian</div>
+                                        <p class="text-xs text-text-secondary mt-1">Data yang mengandung kata kunci ini akan diabaikan. Pisahkan dengan koma.</p>
+                                        <div class="relative w-full mt-1">
+                                            <label for="setting-exceptions" class="sr-only">Kata Kunci Pengecualian</label>
+                                            <textarea id="setting-exceptions" name="setting-exceptions" class="form-textarea w-full h-24 pr-10"></textarea>
+                                            <button class="absolute top-3 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-sm">Kata Kunci Routing</div>
+                                        <p class="text-xs text-text-secondary mt-1">Arahkan data ke tipe 'MANUAL' atau 'TIKET' berdasarkan kata kunci di keterangan.</p>
+                                        <div class="grid grid-cols-2 gap-6 mt-2">
+                                            <div>
+                                                <label for="routing-manual-input" class="text-xs text-color-primary">Arahkan ke 'MANUAL' jika mengandung:</label>
+                                                <div class="flex gap-2 mt-1">
+                                                    <div class="relative flex-grow">
+                                                        <input type="text" id="routing-manual-input" name="routing-manual-input" class="form-input flex-grow w-full pr-10" placeholder="e.g., tartun">
+                                                    </div>
+                                                    <button id="add-routing-manual-btn" class="btn btn-primary p-2 flex-shrink-0" aria-label="Tambah Kata Kunci Manual"><i data-lucide="plus"></i></button>
+                                                </div>
+                                                <div id="routing-manual-list" class="flex flex-wrap gap-2 mt-2"></div>
+                                            </div>
+                                            <div>
+                                                <label for="routing-tiket-input" class="text-xs text-color-primary">Arahkan ke 'TIKET' jika mengandung:</label>
+                                                <div class="flex gap-2 mt-1">
+                                                    <div class="relative flex-grow">
+                                                        <input type="text" id="routing-tiket-input" name="routing-tiket-input" class="form-input flex-grow w-full pr-10" placeholder="e.g., tiket deposit">
+                                                    </div>
+                                                    <button id="add-routing-tiket-btn" class="btn btn-primary p-2 flex-shrink-0" aria-label="Tambah Kata Kunci Tiket"><i data-lucide="plus"></i></button>
+                                                </div>
+                                                <div id="routing-tiket-list" class="flex flex-wrap gap-2 mt-2"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="dollar-sign" class="w-5 h-5 text-color-primary"></i> Aturan Biaya Admin</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color">
+                                    <p class="text-xs text-text-secondary mb-2">Tentukan biaya admin berdasarkan kata kunci dan jumlah maksimal.</p>
+                                    <div class="glass-panel p-3 mt-2 rounded-lg">
+                                        <div class="grid grid-cols-4 gap-2 items-end">
+                                            <div>
+                                                <label for="admin-rule-keyword" class="text-xs font-bold text-text-secondary">Kata Kunci</label>
+                                                <input type="text" id="admin-rule-keyword" name="admin-rule-keyword" class="form-input w-full mt-1" placeholder="e.g., QR">
+                                            </div>
+                                            <div>
+                                                <label for="admin-rule-amount" class="text-xs font-bold text-text-secondary">Jumlah Maks</label>
+                                                <input type="number" id="admin-rule-amount" name="admin-rule-amount" class="form-input w-full mt-1" placeholder="e.g., 200000">
+                                            </div>
+                                            <div>
+                                                <label for="admin-rule-fee-type" class="text-xs font-bold text-text-secondary">Tipe Biaya</label>
+                                                <select id="admin-rule-fee-type" name="admin-rule-fee-type" class="form-select w-full mt-1">
+                                                    <option value="flat">Biaya Flat (Rp)</option>
+                                                    <option value="percentage">Persen (%)</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label for="admin-rule-fee-value" class="font-bold text-sm">Nilai Biaya</label>
+                                                <input type="number" id="admin-rule-fee-value" name="admin-rule-fee-value" class="form-input w-full mt-1" placeholder="e.g., 3000">
+                                            </div>
+                                        </div>
+                                        <button id="add-admin-rule-btn" class="btn btn-primary w-full mt-2 text-sm">Tambah Aturan</button>
+                                    </div>
+                                    <div id="admin-rules-list" class="mt-2 space-y-1"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="users" class="w-5 h-5 text-color-primary"></i> Penggabungan Nama (Konsolidasi)</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color">
+                                    <p class="text-xs text-text-secondary mb-2">Gabungkan variasi nama ke satu nama standar.</p>
+                                    <div class="glass-panel p-3 mt-2 rounded-lg">
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <div class="relative">
+                                                <label for="name-consolidation-from" class="sr-only">Nama Variasi</label>
+                                                <input type="text" id="name-consolidation-from" name="name-consolidation-from" class="form-input w-full pr-10" placeholder="Nama Variasi (e.g., NAMA SAYA)">
+                                            </div>
+                                            <div class="relative">
+                                                <label for="name-consolidation-to" class="sr-only">Nama Target</label>
+                                                <input type="text" id="name-consolidation-to" name="name-consolidation-to" class="form-input w-full pr-10" placeholder="Nama Target (e.g., NamaSaya)">
+                                            </div>
+                                        </div>
+                                        <button id="add-name-consolidation-btn" class="btn btn-primary w-full mt-2 text-sm">Tambah Pemetaan</button>
+                                    </div>
+                                    <div id="name-consolidation-list" class="mt-2 space-y-1"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="shield-check" class="w-5 h-5 text-color-primary"></i> Aturan Audit Otomatis</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color">
+                                    <div class="flex justify-between items-center">
+                                        <div class="font-bold text-sm">Aturan Audit Otomatis</div>
+                                        <div class="flex items-center gap-2">
+                                            <label for="setting-audit-panel-enabled" class="text-xs text-text-secondary">Aktifkan Panel Audit</label>
+                                            <input type="checkbox" id="setting-audit-panel-enabled" name="setting-audit-panel-enabled" class="form-input h-5 w-5">
+                                        </div>
+                                    </div>
+                                    <p class="text-xs text-text-secondary mt-1">Tentukan pasangan kata kunci untuk pencocokan reversal otomatis.</p>
+                                    <div class="glass-panel p-3 mt-2 rounded-lg">
+                                        <div class="grid grid-cols-2 gap-2 items-center">
+                                            <div class="relative">
+                                                <label for="audit-rule-keyword1" class="sr-only">Kata Kunci 1</label>
+                                                <input type="text" id="audit-rule-keyword1" name="audit-rule-keyword1" class="form-input w-full pr-10" placeholder="Kata Kunci Reversal (e.g., REV TARTUN QR)">
+                                            </div>
+                                            <div class="relative">
+                                                <label for="audit-rule-keyword2" class="sr-only">Kata Kunci 2</label>
+                                                <input type="text" id="audit-rule-keyword2" name="audit-rule-keyword2" class="form-input w-full pr-10" placeholder="Kata Kunci Original (e.g., TARTUN QR)">
+                                            </div>
+                                        </div>
+                                        <button id="add-audit-rule-btn" class="btn btn-primary w-full mt-2 text-sm">Tambah Aturan Audit</button>
+                                    </div>
+                                    <div id="audit-rules-list" class="mt-2 space-y-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="settings-tab-content-bisnis" data-content="bisnis" class="settings-tab-content space-y-4 hidden">
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="trending-up" class="w-5 h-5 text-color-primary"></i> Pengaturan Bisnis & Komisi</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color">
+                                    <div class="grid grid-cols-3 gap-4">
+                                        <div>
+                                            <label for="setting-outlet-commission" class="font-bold text-sm">Komisi Outlet (%)</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="number" id="setting-outlet-commission" name="setting-outlet-commission" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label for="setting-cs-commission" class="font-bold text-sm">Komisi CS (%)</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="number" id="setting-cs-commission" name="setting-cs-commission" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label for="setting-target-commission" class="font-bold text-sm">Target Komisi (Rp)</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="number" id="setting-target-commission" name="setting-target-commission" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label for="setting-chart-limit" class="font-bold text-sm">Limit Data Chart</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="number" id="setting-chart-limit" name="setting-chart-limit" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label for="setting-month-start-day" class="font-bold text-sm">Tgl Mulai Bulan</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="number" id="setting-month-start-day" name="setting-month-start-day" class="form-input w-full pr-10" min="1" max="31">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label for="setting-month-end-day" class="font-bold text-sm">Tgl Selesai Bulan</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="number" id="setting-month-end-day" name="setting-month-end-day" class="form-input w-full pr-10" min="1" max="31">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label for="setting-admin-bank-fee" class="font-bold text-sm">Admin Bank (%)</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="number" id="setting-admin-bank-fee" name="setting-admin-bank-fee" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-span-2">
+                                            <label for="setting-admin-bank-keywords" class="font-bold text-sm">Filter Keterangan Admin Bank (pisahkan koma)</label>
+                                            <div class="relative w-full mt-1">
+                                                <input type="text" id="setting-admin-bank-keywords" name="setting-admin-bank-keywords" class="form-input w-full pr-10">
+                                                <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
+                                                    <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="col-span-3">
+                                            <label for="setting-ticket-fee-destination" class="font-bold text-sm">Tujuan Nom. Tiket</label>
+                                            <select id="setting-ticket-fee-destination" name="setting-ticket-fee-destination" class="form-select w-full mt-1">
+                                                <option value="adminFee">Masuk ke Total Biaya Admin</option>
+                                                <option value="outletCommission">Masuk ke Komisi Outlet</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                 <span class="flex items-center gap-3"><i data-lucide="message-circle" class="w-5 h-5 text-color-primary"></i> Kontak Laporan WhatsApp</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color">
+                                    <p class="text-xs text-text-secondary mb-4">Atur kontak yang akan muncul saat tombol "Lapor" diklik. Nomor harus diawali 62.</p>
+                                    <div class="glass-panel p-3 mt-2 rounded-lg">
+                                        <div class="grid grid-cols-3 gap-2 items-end">
+                                            <div>
+                                                <label for="whatsapp-contact-name" class="text-xs font-bold text-text-secondary">Nama Kontak</label>
+                                                <input type="text" id="whatsapp-contact-name" name="whatsapp-contact-name" class="form-input w-full mt-1" placeholder="e.g., CS 1">
+                                            </div>
+                                            <div>
+                                                <label for="whatsapp-contact-number" class="text-xs font-bold text-text-secondary">Nomor WhatsApp</label>
+                                                <input type="text" id="whatsapp-contact-number" name="whatsapp-contact-number" class="form-input w-full mt-1" placeholder="e.g., 6281234567890">
+                                            </div>
+                                            <button id="add-whatsapp-contact-btn" class="btn btn-primary w-full text-sm">Tambah Kontak</button>
+                                        </div>
+                                    </div>
+                                    <div id="whatsapp-contacts-list" class="mt-2 space-y-1"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+    
+                    <div id="settings-tab-content-sistem" data-content="sistem" class="settings-tab-content space-y-4 hidden">
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="database-backup" class="w-5 h-5 text-color-primary"></i> Backup & Restore Pengaturan</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color">
+                                    <p class="text-xs text-text-secondary mb-4">Simpan semua konfigurasi aplikasi saat ini ke sebuah file, atau pulihkan dari file backup.</p>
+                                    <div class="flex gap-4">
+                                        <button id="backup-settings-btn" class="btn btn-primary w-full">Backup Pengaturan</button>
+                                        <button id="restore-settings-btn" class="btn btn-secondary w-full">Restore Pengaturan</button>
+                                        <label for="restore-file-input" class="sr-only">Pilih File Restore</label>
+                                        <input type="file" id="restore-file-input" name="restore-file-input" class="hidden" accept=".json">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="alert-triangle" class="w-5 h-5 text-color-danger"></i> Area Berbahaya</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color space-y-4">
+                                    <div id="delete-data-panel" class="p-4 border border-color-danger rounded-lg">
+                                        <h4 class="font-bold text-color-danger">Hapus Data Transaksi</h4>
+                                        <p class="text-xs text-text-secondary">Hapus semua data transaksi dalam rentang tanggal yang dipilih. Tindakan ini permanen.</p>
+                                        <div class="grid grid-cols-2 gap-2 mt-2">
+                                            <div>
+                                                <label for="delete-start-date" class="text-xs font-bold">Tanggal Mulai</label>
+                                                <input type="date" id="delete-start-date" name="delete-start-date" class="form-input w-full mt-1">
+                                            </div>
+                                            <div>
+                                                <label for="delete-end-date" class="text-xs font-bold">Tanggal Selesai</label>
+                                                <input type="date" id="delete-end-date" name="delete-end-date" class="form-input w-full mt-1">
+                                            </div>
+                                        </div>
+                                        <button id="delete-data-btn" class="btn btn-danger w-full mt-2">Hapus Data Sesuai Rentang</button>
+                                    </div>
+                                    <div class="p-4 border border-color-warning rounded-lg">
+                                        <h4 class="font-bold text-color-warning">Kembalikan Pengaturan Default</h4>
+                                        <p class="text-xs text-text-secondary">Jika terjadi kesalahan konfigurasi, Anda dapat mengembalikan semua pengaturan ke kondisi awal (default dari kode).</p>
+                                        <button id="reset-settings-btn" class="btn btn-warning w-full mt-2">Kembalikan ke Pengaturan Default</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-auto pt-6 flex justify-end flex-shrink-0">
+                    <button id="save-settings-btn" class="btn btn-primary text-lg px-8 py-3">Simpan Semua Pengaturan</button>
+                </div>
+            </div>
+        </div>
+    </template>
+    
+    <script src="js/state.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/virtualScroll.js"></script> 
+    <script src="js/handlers.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
