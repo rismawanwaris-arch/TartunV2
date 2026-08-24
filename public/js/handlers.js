@@ -3357,11 +3357,34 @@ const AppHandlers = {
     },
 
     setDefaultDateFilters() {
+        const settings = this.state.settings || this.state.defaultConfig || {};
+        const startDay = settings.monthStartDay || 29;
+        const endDay = settings.monthEndDay || 28;
         const today = new Date();
-        const yesterday = new Date();
-        yesterday.setDate(today.getDate() - 1);
-        this.dom.filterStartDate.value = this.utils.formatDateForInput(yesterday);
-        this.dom.filterEndDate.value = this.utils.formatDateForInput(today);
+        
+        let startYear = today.getFullYear();
+        let startMonth = today.getMonth();
+        
+        if (today.getDate() < startDay) {
+            startMonth -= 1;
+            if (startMonth < 0) {
+                startMonth = 11;
+                startYear -= 1;
+            }
+        }
+        
+        const startDate = new Date(startYear, startMonth, startDay);
+        
+        let endYear = startYear;
+        let endMonth = startMonth + 1;
+        if (endMonth > 11) {
+            endMonth = 0;
+            endYear += 1;
+        }
+        const endDate = new Date(endYear, endMonth, endDay);
+        
+        this.dom.filterStartDate.value = this.utils.formatDateForInput(startDate);
+        this.dom.filterEndDate.value = this.utils.formatDateForInput(endDate);
     },
 
     async handleFullRefresh() {

@@ -4,7 +4,7 @@ const db = require('../db');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const crypto = require('crypto');
 
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const { page = 1, limit = 50, search = '', filterType = '', startDate = '', endDate = '' } = req.query;
     const offset = (page - 1) * limit;

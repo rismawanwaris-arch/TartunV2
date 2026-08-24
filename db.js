@@ -47,6 +47,7 @@ function initDb() {
     db.run(`CREATE INDEX IF NOT EXISTS idx_transactions_batch_id ON transactions(batch_id)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_transactions_nama ON transactions(nama)`);
     db.run(`CREATE INDEX IF NOT EXISTS idx_transactions_tipe ON transactions(tipe_sheet)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_transactions_dup_lookup ON transactions(nama, jumlah, keterangan)`);
 
     db.run(`
       CREATE TABLE IF NOT EXISTS logs (

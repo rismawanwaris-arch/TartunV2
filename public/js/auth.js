@@ -74,13 +74,13 @@ const AppAuth = {
 
             if (!this.state.isInitialAuthCheckComplete) {
                 await this.settings.load();
-                if (this.state.currentUser) {
-                    await this.handlers.fetchInitialData();
-                    this.handlers.setupDataListeners();
-                }
+                this.handlers.setDefaultDateFilters();
+                await this.handlers.fetchInitialData();
+                this.handlers.setupDataListeners();
                 await this.handlers.listenToLogChanges();
             } else {
                 await this.settings.load();
+                this.handlers.setDefaultDateFilters();
                 if (isLoggingIn) {
                     this.ui.showLoader('Memuat data...');
                     await this.handlers.fetchInitialData();

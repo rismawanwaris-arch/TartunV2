@@ -9,17 +9,34 @@ const AppAPI = {
         };
         if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        const res = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
-        const data = await res.json();
-        if (!res.ok) {
-            if (res.status === 401 && !endpoint.includes('login')) {
-                if (localStorage.getItem('fkof_token')) {
-                    this.auth.logout();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
+
+        try {
+            const res = await fetch(`${API_URL}${endpoint}`, { 
+                ...options, 
+                headers,
+                signal: controller.signal 
+            });
+            clearTimeout(timeoutId);
+            
+            const data = await res.json();
+            if (!res.ok) {
+                if (res.status === 401 && !endpoint.includes('login')) {
+                    if (localStorage.getItem('fkof_token')) {
+                        this.auth.logout();
+                    }
                 }
+                throw new Error(data.error || 'API Error');
             }
-            throw new Error(data.error || 'API Error');
+            return data;
+        } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                throw new Error('Koneksi timeout. Server tidak merespon dalam 30 detik.');
+            }
+            throw error;
         }
-        return data;
     },
 
     async fetchAllData() {
