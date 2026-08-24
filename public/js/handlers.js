@@ -584,6 +584,11 @@ const AppHandlers = {
             }
         }));
 
+        const getNmidMapping = () => Object.fromEntries(Array.from(document.querySelectorAll('#nmid-mapping-list .rule-row-wrapper')).map(wrapper => {
+            const spans = wrapper.querySelectorAll('span');
+            return [spans[0].textContent.trim(), spans[1].textContent.trim()];
+        }));
+
         const getAuditRules = () => Array.from(document.querySelectorAll('#audit-rules-list .rule-row-wrapper')).map(wrapper => {
             const inputs = wrapper.querySelectorAll('input');
             if (inputs.length > 1) {
@@ -675,6 +680,7 @@ const AppHandlers = {
             routingKeywords: getRoutingKeywords(),
             adminRules: getAdminRules(),
             nameConsolidation: getNameConsolidation(),
+            nmidMapping: getNmidMapping(),
             auditRules: getAuditRules(),
             auditPanelEnabled: document.getElementById('setting-audit-panel-enabled').checked,
             adminBankFeePercent: parseFloat(document.getElementById('setting-admin-bank-fee').value) || 0,
@@ -1960,6 +1966,17 @@ const AppHandlers = {
         document.getElementById('upload-csv-btn').onclick = () => document.getElementById('csv-file-input').click();
         document.getElementById('csv-file-input').onchange = this.handlers.handleCsvFileUpload;
         
+        // Initialize KlikBCA Date Input
+        const klikBcaDate = document.getElementById('klikbca-date-input');
+        if (klikBcaDate && !klikBcaDate.value) {
+            klikBcaDate.value = this.utils.formatDateForInput(new Date());
+        }
+        
+        const processKlikBca = document.getElementById('process-klikbca-btn');
+        if (processKlikBca) {
+            processKlikBca.onclick = () => this.handlers.processAndStageKlikBcaData();
+        }
+        
         document.getElementById('submit-valid-data-btn').onclick = this.handlers.submitStagedData;
         const deleteAllErrorsBtn = document.getElementById('delete-all-errors-btn');
         if (deleteAllErrorsBtn) {
@@ -2060,6 +2077,16 @@ const AppHandlers = {
     },
 
     async processAndStageData(rawData = null, delimiter = null) {
+        if (rawData === null) {
+            const spreadsheetText = document.getElementById('data-input-area').value.trim();
+            const klikbcaText = document.getElementById('klikbca-input-area').value.trim();
+            
+            if (!spreadsheetText && klikbcaText) {
+                this.handlers.processAndStageKlikBcaData();
+                return;
+            }
+        }
+
         if (this.state.virtualScrollInstances.staging) {
             this.state.virtualScrollInstances.staging.destroy();
             delete this.state.virtualScrollInstances.staging;
@@ -2105,6 +2132,206 @@ const AppHandlers = {
         stagingArea.classList.remove('hidden');
         
         this.ui.hideLoader();
+    },
+
+    async processAndStageKlikBcaData() {
+        const inputArea = document.getElementById('klikbca-input-area');
+        const dateInput = document.getElementById('klikbca-date-input');
+        if (!inputArea || !dateInput) return;
+        
+        const rawText = inputArea.value.trim();
+        if (!rawText) {
+            this.ui.showModal('Info', 'Teks input KlikBCA kosong.');
+            return;
+        }
+        
+        const defaultDate = dateInput.value;
+        if (!defaultDate) {
+            this.ui.showModal('Info', 'Silakan pilih tanggal terlebih dahulu.');
+            return;
+        }
+
+        if (this.state.virtualScrollInstances.staging) {
+            this.state.virtualScrollInstances.staging.destroy();
+            delete this.state.virtualScrollInstances.staging;
+        }
+
+        const vsInstance = VirtualScrollManager.create({
+            containerEl: document.getElementById('staging-table-body-wrapper'),
+            scrollerEl: document.getElementById('staging-scroller'),
+            contentEl: document.getElementById('staging-table-body'),
+            fullData: [],
+            renderRowFunction: this.ui.createStagingTableRow.bind(this.ui),
+            rowHeight: 60,
+        });
+        this.state.virtualScrollInstances.staging = vsInstance;
+        vsInstance.initialize();
+
+        this.ui.showLoader('Memproses dan memvalidasi teks KlikBCA...');
+        
+        try {
+            const parsedItems = this.handlers.parseBcaQrisText(rawText, defaultDate);
+            const { finalStagedData } = await this.handlers.checkForDuplicates(parsedItems);
+            
+            this.state.stagingData = finalStagedData;
+            this.state.activeStagingFilter = 'all';
+            document.querySelectorAll('.staging-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.statusFilter === 'all'));
+            
+            this.handlers.filterAndRenderStagingTable();
+            this.ui.updateStagingStatsAndSubmitBtn();
+            
+            const stagingArea = document.getElementById('staging-area');
+            const contentWrapper = document.getElementById('input-content-wrapper');
+            
+            contentWrapper.classList.remove('lg:grid-cols-1');
+            contentWrapper.classList.add('lg:grid-cols-3');
+            
+            stagingArea.classList.remove('hidden');
+        } catch (e) {
+            this.ui.showModal('Error', `Gagal memproses KlikBCA: ${e.message}`);
+        } finally {
+            this.ui.hideLoader();
+        }
+    },
+
+    parseBcaQrisText(text, defaultDate) {
+        const blocks = [];
+        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+        
+        let currentBlock = [];
+        for (const line of lines) {
+            if (line.toUpperCase().startsWith('RRN:')) {
+                if (currentBlock.length > 0) {
+                    blocks.push(currentBlock);
+                }
+                currentBlock = [line];
+            } else {
+                currentBlock.push(line);
+            }
+        }
+        if (currentBlock.length > 0) {
+            blocks.push(currentBlock);
+        }
+
+        const processedItems = [];
+        const processedHashes = new Set();
+        const nmidMapping = this.state.settings.nmidMapping || {};
+        const nameConsolidation = this.state.settings.nameConsolidation || {};
+        const exceptionKeywords = this.state.settings.exceptionKeywords || [];
+
+        blocks.forEach((block, index) => {
+            let item = {
+                originalIndex: index,
+                originalLine: block.join('\n'),
+                status: 'error',
+                errorReason: '',
+                data: {}
+            };
+
+            try {
+                if (block.length < 3) {
+                    item.errorReason = 'Format mutasi KlikBCA tidak lengkap';
+                    processedItems.push(item);
+                    return;
+                }
+
+                // 1. RRN and Time
+                const rrnLine = block[0];
+                const rrnMatch = rrnLine.match(/RRN:\s*([A-Za-z0-9]+)/i);
+                const timeMatch = rrnLine.match(/\|\s*(\d{1,2}\.\d{2})/);
+                
+                if (!rrnMatch) {
+                    item.errorReason = 'RRN tidak ditemukan';
+                    processedItems.push(item);
+                    return;
+                }
+                const rrn = rrnMatch[1];
+                const jam = timeMatch ? timeMatch[1].replace('.', ':') : '00:00';
+
+                // 2. NMID / Branch
+                const nmidLine = block[1];
+                const nmidMatch = nmidLine.match(/NMID:\s*([A-Za-z0-9]+)/i);
+                const rawNameMatch = nmidLine.match(/^(.*?)\s*\(NMID:/i);
+                
+                let rawName = rawNameMatch ? rawNameMatch[1].trim() : 'UNKNOWN BRANCH';
+                let nmid = nmidMatch ? nmidMatch[1].trim() : '';
+
+                let finalName = rawName;
+                let isNmidWarning = false;
+                if (nmid) {
+                    if (nmidMapping[nmid]) {
+                        finalName = nmidMapping[nmid];
+                    } else {
+                        isNmidWarning = true;
+                    }
+                }
+
+                let consolidatedName = nameConsolidation[finalName.toUpperCase()] || finalName;
+
+                // 3. Payer details
+                let payerLine = block.find(l => l.toUpperCase().includes('MENERIMA PEMBAYARAN DARI'));
+                let bankName = 'QRIS';
+                let payerName = '';
+                
+                if (payerLine) {
+                    const bankMatch = payerLine.match(/Menerima pembayaran dari\s+([A-Za-z0-9\s]+)\s+a\.n\./i);
+                    const payerMatch = payerLine.match(/a\.n\.\s+(.*)/i);
+                    if (bankMatch) bankName = bankMatch[1].trim().toUpperCase();
+                    if (payerMatch) payerName = payerMatch[1].trim();
+                }
+
+                // 4. Amount
+                const amountLine = block[block.length - 1];
+                const amountMatch = amountLine.replace(/\./g, '').match(/\+\s*Rp\s*([0-9]+)/i);
+                if (!amountMatch) {
+                    item.errorReason = 'Jumlah nominal tidak ditemukan';
+                    processedItems.push(item);
+                    return;
+                }
+                const jumlah = parseFloat(amountMatch[1]);
+
+                const keterangan = `TARTUN QR RRN:${rrn} | ${bankName} a.n. ${payerName}`;
+                if (exceptionKeywords.some(kw => keterangan.toLowerCase().includes(kw.toLowerCase()))) {
+                    return;
+                }
+
+                const dateObj = new Date(defaultDate);
+                const [hours, minutes] = jam.split(':');
+                dateObj.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+
+                // Generate Row Hash (formatted date datepart + name + amount + keterangan)
+                const rowHash = `${dateObj.toISOString().split('T')[0]}|${consolidatedName}|${jumlah}|${keterangan}`;
+                
+                if (processedHashes.has(rowHash)) {
+                    item.status = 'duplicate_input';
+                    item.errorReason = 'Duplikat di input';
+                    processedItems.push(item);
+                    return;
+                }
+                processedHashes.add(rowHash);
+
+                item.status = 'valid';
+                item.data = {
+                    tanggal: dateObj.toISOString(),
+                    nama: consolidatedName,
+                    jumlah: jumlah,
+                    keterangan: keterangan,
+                    tipe_sheet: 'MANUAL',
+                    hash: rowHash
+                };
+
+                if (isNmidWarning) {
+                    item.errorReason = `NMID ${nmid} belum terdaftar di Pengaturan. Menggunakan nama KlikBCA: ${rawName}.`;
+                }
+
+                processedItems.push(item);
+            } catch (err) {
+                item.errorReason = err.message;
+                processedItems.push(item);
+            }
+        });
+
+        return processedItems;
     },
 
     filterAndRenderStagingTable() {
@@ -3160,13 +3387,18 @@ const AppHandlers = {
         const adminRules = s.adminRules || [];
         const nameConsolidation = s.nameConsolidation || {};
         const auditRules = s.auditRules || [];
+        const nmidMapping = s.nmidMapping || {};
 
 
-        ['routing-manual-list', 'routing-tiket-list', 'admin-rules-list', 'name-consolidation-list', 'audit-rules-list'].forEach(id => document.getElementById(id).innerHTML = '');
+        ['routing-manual-list', 'routing-tiket-list', 'admin-rules-list', 'name-consolidation-list', 'audit-rules-list', 'nmid-mapping-list'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.innerHTML = '';
+        });
         (routingKeywords.manual || []).forEach(kw => this.ui.addSettingTag('routing-manual-list', kw));
         (routingKeywords.tiket || []).forEach(kw => this.ui.addSettingTag('routing-tiket-list', kw));
         (adminRules || []).forEach(rule => this.ui.addAdminRuleRow(rule));
         Object.entries(nameConsolidation || {}).forEach(([from, to]) => this.ui.addNameMapRow(from, to));
+        Object.entries(nmidMapping || {}).forEach(([from, to]) => this.ui.addNmidMappingRow(from, to));
         (auditRules || []).forEach(rule => this.ui.addAuditRuleRow(rule));
 
         document.getElementById('add-routing-manual-btn').onclick = () => {
@@ -3203,6 +3435,32 @@ const AppHandlers = {
                 f.value = t.value = '';
             }
         };
+        const addNmidBtn = document.getElementById('add-nmid-mapping-btn');
+        if (addNmidBtn) {
+            addNmidBtn.onclick = (e) => {
+                e.preventDefault();
+                try {
+                    const f = document.getElementById('nmid-mapping-from'),
+                        t = document.getElementById('nmid-mapping-to');
+                    if (!f || !t) {
+                        console.error("Elemen input pemetaan NMID tidak ditemukan.");
+                        return;
+                    }
+                    const fromVal = f.value.trim();
+                    const toVal = t.value.trim();
+                    if (fromVal && toVal) {
+                        this.ui.addNmidMappingRow(fromVal, toVal);
+                        f.value = '';
+                        t.value = '';
+                    } else {
+                        this.ui.showModal('Info', 'Harap isi kedua kolom pemetaan NMID (NMID dan Nama Outlet).');
+                    }
+                } catch (err) {
+                    console.error("Gagal menambah pemetaan:", err);
+                    alert("Gagal menambah pemetaan: " + err.message);
+                }
+            };
+        }
         document.getElementById('add-audit-rule-btn').onclick = () => {
             const k1 = document.getElementById('audit-rule-keyword1'),
                 k2 = document.getElementById('audit-rule-keyword2');
@@ -3727,6 +3985,16 @@ Laporan: CS, bantu cek data tartun ini
             this.ui.showModal('Error', `Gagal menerapkan aksi massal: ${e.message}`);
         } finally {
             this.ui.hideLoader();
+        }
+    },
+
+    handleAddNmidMapping() {
+        const f = document.getElementById('nmid-mapping-from'),
+            t = document.getElementById('nmid-mapping-to');
+        if (f && t && f.value.trim() && t.value.trim()) {
+            this.ui.addNmidMappingRow(f.value.trim(), t.value.trim());
+            f.value = '';
+            t.value = '';
         }
     }
 };

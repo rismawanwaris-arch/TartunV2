@@ -669,114 +669,187 @@ const AppUI = {
 
             switch (widget.id) {
                 case 'announcement':
-                    widgetContainer.classList.add('border-l-4', 'border-indigo-500/70');
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-indigo-500`;
                     const style = this.state.settings.announcementStyle || this.state.defaultConfig.announcementStyle;
                     const sizeClassAnno = `text-${style.fontSize}`;
                     const weightClass = `font-${style.fontWeight}`;
                     const colorClass = style.color === 'default' ? 'text-text-primary' : `text-color-${style.color}`;
                     const animationClass = style.animation !== 'none' ? `animate-${style.animation}` : '';
                     widgetHTML = `
-                                <h3 class="text-sm font-bold text-text-secondary flex items-center gap-2"><i data-lucide="megaphone" class="w-4 h-4"></i>PENGUMUMAN</h3>
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400"><i data-lucide="megaphone" class="w-4 h-4"></i></div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">PENGUMUMAN</h3>
+                                </div>
                                 <p id="widget-announcement-text" class="mt-2 whitespace-pre-wrap ${sizeClassAnno} ${weightClass} ${colorClass} ${animationClass}"></p>
                             `;
                     break;
                 case 'globalCommissionSummary':
-                    widgetContainer.classList.add('border-l-4', 'border-teal-500/70');
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-teal-500`;
                     widgetHTML = `
-                                <h3 class="text-sm font-bold text-text-secondary mb-2">RINGKASAN GLOBAL (BULAN INI)</h3>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <div class="p-1.5 rounded-lg bg-teal-500/10 text-teal-400"><i data-lucide="pie-chart" class="w-4 h-4"></i></div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">RINGKASAN GLOBAL (BULAN INI)</h3>
+                                </div>
                                 <div class="space-y-2 text-sm">
-                                    <div class="flex justify-between"><span>Total Biaya Admin:</span> <span id="widget-global-admin-fee" class="font-bold">Rp 0</span></div>
-                                    <div class="flex justify-between"><span>Total Komisi Outlet:</span> <span id="widget-global-commission-outlet" class="font-bold">Rp 0</span></div>
-                                    <div class="flex justify-between"><span>Total Komisi CS:</span> <span id="widget-global-commission-cs" class="font-bold">Rp 0</span></div>
+                                    <div class="flex justify-between py-1 border-b border-border-color/40"><span>Total Biaya Admin:</span> <span id="widget-global-admin-fee" class="font-bold text-color-primary">Rp 0</span></div>
+                                    <div class="flex justify-between py-1 border-b border-border-color/40"><span>Total Komisi Outlet:</span> <span id="widget-global-commission-outlet" class="font-bold text-color-success">Rp 0</span></div>
+                                    <div class="flex justify-between py-1"><span>Total Komisi CS:</span> <span id="widget-global-commission-cs" class="font-bold text-color-accent">Rp 0</span></div>
                                 </div>
                             `;
                     break;
                 case 'activeOutletsCount':
-                    widgetContainer.classList.add('border-l-4', 'border-sky-500/70');
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary">OUTLET AKTIF (BULAN INI)</h3><p id="widget-active-outlets-count" class="text-4xl font-display mt-2">0</p>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-sky-500`;
+                    widgetHTML = `
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">OUTLET AKTIF (BULAN INI)</h3>
+                                    <div class="p-1.5 rounded-lg bg-sky-500/10 text-sky-400"><i data-lucide="store" class="w-4 h-4"></i></div>
+                                </div>
+                                <p id="widget-active-outlets-count" class="text-3xl font-display font-bold text-sky-400 mt-1">0</p>
+                            `;
                     break;
                 case 'kpiTodayTotal':
-                    widgetContainer.classList.add('border-l-4', 'border-green-500/70');
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary">TOTAL ADMIN (HARI INI)</h3><p id="kpi-today-total" class="text-3xl font-display mt-2">Rp 0</p>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-emerald-500`;
+                    widgetHTML = `
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">TOTAL ADMIN (HARI INI)</h3>
+                                    <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="trending-up" class="w-4 h-4"></i></div>
+                                </div>
+                                <p id="kpi-today-total" class="text-2xl font-display font-bold text-emerald-400 mt-1">Rp 0</p>
+                            `;
                     break;
                 case 'kpiTodayCount':
-                    widgetContainer.classList.add('border-l-4', 'border-green-500/70');
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary">JUMLAH TRANSAKSI (HARI INI)</h3><p id="kpi-today-count" class="text-3xl font-display mt-2">0</p>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-emerald-500`;
+                    widgetHTML = `
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">JUMLAH TRANSAKSI (HARI INI)</h3>
+                                    <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="check-circle-2" class="w-4 h-4"></i></div>
+                                </div>
+                                <p id="kpi-today-count" class="text-2xl font-display font-bold text-emerald-400 mt-1">0</p>
+                            `;
                     break;
                 case 'kpiYesterdayTotal':
-                    widgetContainer.classList.add('border-l-4', 'border-cyan-500/70');
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary">TOTAL ADMIN (KEMARIN)</h3><p id="kpi-yesterday-total" class="text-3xl font-display mt-2">Rp 0</p>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-cyan-500`;
+                    widgetHTML = `
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">TOTAL ADMIN (KEMARIN)</h3>
+                                    <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="calendar" class="w-4 h-4"></i></div>
+                                </div>
+                                <p id="kpi-yesterday-total" class="text-2xl font-display font-bold text-cyan-400 mt-1">Rp 0</p>
+                            `;
                     break;
                 case 'kpiYesterdayCount':
-                    widgetContainer.classList.add('border-l-4', 'border-cyan-500/70');
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary">JUMLAH TRANSAKSI (KEMARIN)</h3><p id="kpi-yesterday-count" class="text-3xl font-display mt-2">0</p>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-cyan-500`;
+                    widgetHTML = `
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">JUMLAH TRANSAKSI (KEMARIN)</h3>
+                                    <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="layers" class="w-4 h-4"></i></div>
+                                </div>
+                                <p id="kpi-yesterday-count" class="text-2xl font-display font-bold text-cyan-400 mt-1">0</p>
+                            `;
                     break;
                 case 'kpiMonthCommission':
-                    widgetContainer.classList.add('border-l-4', 'border-pink-500/70');
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary">TOTAL KOMISI OUTLET (BULAN INI)</h3><p id="kpi-month-commission" class="text-3xl font-display mt-2">Rp 0</p>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-pink-500`;
+                    widgetHTML = `
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">TOTAL KOMISI OUTLET (BULAN INI)</h3>
+                                    <div class="p-1.5 rounded-lg bg-pink-500/10 text-pink-400"><i data-lucide="sparkles" class="w-4 h-4"></i></div>
+                                </div>
+                                <p id="kpi-month-commission" class="text-2xl font-display font-bold text-pink-400 mt-1">Rp 0</p>
+                            `;
                     break;
                 case 'kpiMonthTopUser':
-                    widgetContainer.classList.add('border-l-4', 'border-pink-500/70');
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary">OUTLET TERAKTIF (BULAN INI)</h3><p id="kpi-month-top-user" class="text-3xl font-display mt-2">-</p>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-amber-500`;
+                    widgetHTML = `
+                                <div class="flex items-center justify-between mb-2">
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">OUTLET TERAKTIF (BULAN INI)</h3>
+                                    <div class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="trophy" class="w-4 h-4"></i></div>
+                                </div>
+                                <p id="kpi-month-top-user" class="text-xl font-bold text-amber-400 mt-1 truncate">-</p>
+                            `;
                     break;
                 case 'progressCommission':
-                    widgetContainer.classList.add('border-l-4', 'border-purple-500/70');
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-purple-500`;
                     widgetHTML = `
                                 <div class="flex justify-between items-center mb-2">
-                                    <h3 class="text-sm font-bold text-text-secondary">PROGRESS TARGET KOMISI BULANAN</h3>
-                                    <span id="progress-percentage" class="font-display text-lg text-color-accent">0%</span>
+                                    <div class="flex items-center gap-2">
+                                        <div class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400"><i data-lucide="target" class="w-4 h-4"></i></div>
+                                        <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">PROGRESS TARGET KOMISI BULANAN</h3>
+                                    </div>
+                                    <span id="progress-percentage" class="font-display text-lg font-bold text-purple-400">0%</span>
                                 </div>
-                                <div class="progress-bar-container w-full h-4">
+                                <div class="progress-bar-container w-full h-3 mt-3">
                                     <div id="commission-progress-bar" class="progress-bar" style="width: 0%;"></div>
                                 </div>
-                                <div class="flex justify-between text-xs mt-1 text-text-muted">
-                                    <span id="current-commission-label">Rp 0</span>
+                                <div class="flex justify-between text-xs mt-2 text-text-muted">
+                                    <span id="current-commission-label" class="font-semibold text-text-primary">Rp 0</span>
                                     <span id="target-commission-label">dari Rp 15.000.000</span>
                                 </div>`;
                     break;
                 case 'trendChart':
-                    widgetHTML = `<h3 class="text-sm font-bold text-text-secondary mb-4">TREND BIAYA ADMIN (7 HARI TERAKHIR)</h3><div class="relative h-64"><canvas id="dashboard-trend-chart"></canvas></div>`;
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass}`;
+                    widgetHTML = `
+                                <div class="flex items-center gap-2 mb-4">
+                                    <div class="p-1.5 rounded-lg bg-sky-500/10 text-sky-400"><i data-lucide="activity" class="w-4 h-4"></i></div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">TREND BIAYA ADMIN (7 HARI TERAKHIR)</h3>
+                                </div>
+                                <div class="relative h-64"><canvas id="dashboard-trend-chart"></canvas></div>
+                            `;
                     break;
                 case 'tableTopOutlets':
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass}`;
                     widgetHTML = `
-                                <h3 class="text-sm font-bold text-text-secondary mb-2">TOP 5 OUTLET (KOMISI BULAN INI)</h3>
-                                <div class="overflow-auto max-h-48">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <div class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="medal" class="w-4 h-4"></i></div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">TOP 5 OUTLET (KOMISI BULAN INI)</h3>
+                                </div>
+                                <div class="overflow-auto max-h-48 rounded-lg border border-border-color/50">
                                 <table class="w-full text-left text-xs">
-                                    <thead><tr class="text-color-primary"><th class="p-2">#</th><th class="p-2">Nama</th><th class="p-2 text-right">Komisi</th></tr></thead>
-                                    <tbody id="top-outlets-tbody"></tbody>
+                                    <thead class="bg-black/20 text-color-primary font-bold"><tr class="border-b border-border-color/50"><th class="p-2.5">#</th><th class="p-2.5">Nama</th><th class="p-2.5 text-right">Komisi</th></tr></thead>
+                                    <tbody id="top-outlets-tbody" class="divide-y divide-border-color/30"></tbody>
                                 </table>
                                 </div>
                              `;
                     break;
                 case 'tableRecentTx':
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass}`;
                     widgetHTML = `
-                                <h3 class="text-sm font-bold text-text-secondary mb-2">5 TRANSAKSI TERKINI</h3>
-                                <div class="overflow-auto max-h-48">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="clock" class="w-4 h-4"></i></div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">5 TRANSAKSI TERKINI</h3>
+                                </div>
+                                <div class="overflow-auto max-h-48 rounded-lg border border-border-color/50">
                                 <table class="w-full text-left text-xs">
-                                    <thead><tr class="text-color-primary"><th class="p-2">Waktu</th><th class="p-2">Nama</th><th class="p-2 text-right">Admin</th></tr></thead>
-                                    <tbody id="recent-tx-tbody"></tbody>
+                                    <thead class="bg-black/20 text-color-primary font-bold"><tr class="border-b border-border-color/50"><th class="p-2.5">Waktu</th><th class="p-2.5">Nama</th><th class="p-2.5 text-right">Admin</th></tr></thead>
+                                    <tbody id="recent-tx-tbody" class="divide-y divide-border-color/30"></tbody>
                                 </table>
                                 </div>
                             `;
                     break;
                 case 'chartTxType':
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass}`;
                     widgetHTML = `
-                                <h3 class="text-sm font-bold text-text-secondary mb-2">KOMPOSISI TIPE TRANSAKSI (BULAN INI)</h3>
+                                <div class="flex items-center gap-2 mb-3">
+                                    <div class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400"><i data-lucide="pie-chart" class="w-4 h-4"></i></div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">KOMPOSISI TIPE TRANSAKSI (BULAN INI)</h3>
+                                </div>
                                 <div class="relative h-48"><canvas id="tx-type-pie-chart"></canvas></div>
                             `;
                     break;
                 case 'utilAdminCalculator':
-                    widgetContainer.classList.add('border-l-4', 'border-yellow-500/70');
+                    widgetContainer.className = `glass-panel p-4 ${sizeClass} border-l-4 border-amber-500`;
                     const uniqueKeywords = [...new Set(this.state.settings.adminRules.map(rule => rule.keyword.toUpperCase()))];
                     const optionsHTML = uniqueKeywords.map((kw, index) => {
                         const buttonText = kw.replace(/,\s*/g, ' - ');
                         return `<button data-keyword="${kw}" class="segmented-control-button ${index === 0 ? 'active' : ''}">${buttonText}</button>`;
                     }).join('');
                     widgetHTML = `
-                                <h3 class="text-sm font-bold text-text-secondary mb-2">KALKULATOR BIAYA ADMIN</h3>
-                                <div class="space-y-2 text-sm">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <div class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400"><i data-lucide="calculator" class="w-4 h-4"></i></div>
+                                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">KALKULATOR BIAYA ADMIN</h3>
+                                </div>
+                                <div class="space-y-3 text-sm">
                                     <div class="relative">
-                                        <input type="text" inputmode="numeric" id="calc-amount-input" class="form-input w-full pr-10" placeholder="Masukkan Jumlah">
+                                        <input type="text" inputmode="numeric" id="calc-amount-input" class="form-input w-full pr-10" placeholder="Masukkan Jumlah (e.g. 50000)">
                                         <button id="clear-calc-btn-icon" class="absolute inset-y-0 right-0 flex items-center pr-3" style="visibility: hidden;">
                                             <i data-lucide="x-circle" class="h-5 w-5 text-text-secondary hover:text-color-danger"></i>
                                         </button>
@@ -784,9 +857,9 @@ const AppUI = {
                                     <div id="calc-type-segmented-control" class="segmented-control">
                                         ${optionsHTML}
                                     </div>
-                                    <div class="text-center pt-2">
-                                        <p class="text-text-secondary">Perkiraan Biaya Admin:</p>
-                                        <p id="calc-result" class="text-4xl font-display text-color-warning">Rp 0</p>
+                                    <div class="text-center pt-2 p-3 bg-black/20 rounded-lg border border-border-color/40">
+                                        <p class="text-xs uppercase tracking-wider text-text-secondary">Perkiraan Biaya Admin:</p>
+                                        <p id="calc-result" class="text-3xl font-display font-bold text-amber-400 mt-1">Rp 0</p>
                                     </div>
                                 </div>
                              `;
@@ -1215,9 +1288,13 @@ const AppUI = {
             duplicate: 0,
             error: 0
         };
+        let totalNominal = 0;
         this.state.stagingData.forEach(item => {
             stats.total++;
-            if (item.status === 'valid') stats.valid++;
+            if (item.status === 'valid') {
+                stats.valid++;
+                totalNominal += (parseFloat(item.data.jumlah) || 0);
+            }
             else if (item.status.startsWith('duplicate')) stats.duplicate++;
             else if (item.status === 'error') stats.error++;
         });
@@ -1226,6 +1303,11 @@ const AppUI = {
         document.getElementById('staging-valid-count').textContent = stats.valid;
         document.getElementById('staging-duplicate-count').textContent = stats.duplicate;
         document.getElementById('staging-error-count').textContent = stats.error;
+
+        const nominalEl = document.getElementById('staging-total-nominal');
+        if (nominalEl) {
+            nominalEl.textContent = this.utils.formatCurrency(totalNominal);
+        }
 
         const submitBtn = document.getElementById('submit-valid-data-btn');
         const submitCount = document.getElementById('submit-valid-count');
@@ -1321,6 +1403,29 @@ const AppUI = {
             from,
             to
         });
+    },
+
+    addNmidMappingRow(from, to) {
+        const list = document.getElementById('nmid-mapping-list');
+        if (!list) return;
+        const row = document.createElement('div');
+        row.className = 'rule-row-wrapper';
+        list.appendChild(row);
+        
+        row.innerHTML = `
+            <div class="flex items-center gap-2 bg-black/20 p-1 rounded-md text-xs">
+                <span class="flex-grow p-1 font-mono font-bold">${from}</span>
+                <i data-lucide="arrow-right" class="w-4 h-4 text-color-primary"></i>
+                <span class="flex-grow p-1 font-mono">${to}</span>
+                <div class="actions">
+                    <button class="remove-btn text-color-danger hover:text-white p-1">
+                        <i data-lucide="trash-2" class="w-4 h-4 pointer-events-none"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+        row.querySelector('.remove-btn').onclick = () => row.remove();
+        lucide.createIcons();
     },
 
     renderNameMapView(wrapper, rule) {
@@ -1525,6 +1630,8 @@ const AppUI = {
             </div>
         `;
 
+        const totalAmount = data.reduce((sum, row) => sum + (parseFloat(row.jumlah) || 0), 0);
+
         const contentHTML = `
             <div id="transaction-modal-controls" class="flex justify-between items-center mb-4">
                 <div>
@@ -1545,6 +1652,16 @@ const AppUI = {
                 <div id="transaction-detail-scroll-container" class="h-[50vh] overflow-y-auto relative">
                     <div id="transaction-detail-scroller" class="relative w-full">
                         <div id="transaction-detail-tbody"></div>
+                    </div>
+                </div>
+                <div class="bg-bg-panel p-2 font-bold text-xs uppercase border-t border-border-color">
+                    <div class="transaction-detail-grid-layout ${layoutClass}">
+                        ${canEdit ? '<div></div>' : ''}
+                        <div class="p-2">TOTAL TRANSAKSI:</div>
+                        <div class="p-2"></div>
+                        <div class="p-2 text-right text-color-primary text-sm font-display font-bold">${this.utils.formatCurrency(totalAmount)}</div>
+                        <div class="p-2"></div>
+                        <div class="p-2"></div>
                     </div>
                 </div>
             </div>

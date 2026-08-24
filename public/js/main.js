@@ -1,3 +1,8 @@
+window.onerror = function(message, source, lineno, colno, error) {
+    alert("JS Error: " + message + " at " + source + ":" + lineno);
+    return false;
+};
+
 document.addEventListener('DOMContentLoaded', () => {
 
     const script = document.createElement('script');
@@ -193,6 +198,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 filterToggleHandle: document.getElementById('filter-toggle-handle'),
                 appContainer: document.getElementById('app-container'),
                 publicLogPanel: document.getElementById('public-log-panel'),
+                klikBcaInputArea: document.getElementById('klikbca-input-area'),
+                klikBcaDateInput: document.getElementById('klikbca-date-input'),
+                processKlikBcaBtn: document.getElementById('process-klikbca-btn'),
+                nmidMappingFrom: document.getElementById('nmid-mapping-from'),
+                nmidMappingTo: document.getElementById('nmid-mapping-to'),
+                addNmidMappingBtn: document.getElementById('add-nmid-mapping-btn'),
+                nmidMappingList: document.getElementById('nmid-mapping-list'),
             };
 
             Chart.register({
@@ -245,6 +257,14 @@ document.addEventListener('DOMContentLoaded', () => {
             
             this.dom.resetBtn.addEventListener('click', this.handlers.handleFilterReset);
             this.dom.businessMonthBtn.addEventListener('click', this.handlers.setToCurrentBusinessMonth);
+            
+            // Opsi 3 & NMID listeners
+            if (this.dom.processKlikBcaBtn) {
+                this.dom.processKlikBcaBtn.addEventListener('click', this.handlers.processAndStageKlikBcaData);
+            }
+            if (this.dom.addNmidMappingBtn) {
+                this.dom.addNmidMappingBtn.addEventListener('click', this.handlers.handleAddNmidMapping);
+            }
 
             this.dom.closeLoginModalBtn.addEventListener('click', this.ui.hideLoginModal);
             window.addEventListener('keydown', (e) => {

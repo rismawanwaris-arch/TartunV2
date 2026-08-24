@@ -74,6 +74,10 @@ function initDb() {
       if (!err && row.count === 0) {
         const defaultSettings = {
           backgroundUrl: "",
+          nmidMapping: {
+            "ID1026574479725": "PLC ALFA1 PASIR IMPUN",
+            "ID1026574479691": "PLC ALFA2 SINJAY2"
+          },
           publicDashboardLayout: [
             { id: "announcement", size: "full", label: "Pengumuman", visible: true },
             { id: "kpiMonthCommission", size: "small", label: "Total Komisi (Bulan Ini)", visible: true },
