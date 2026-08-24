@@ -74,7 +74,23 @@ function initDb() {
       if (!err && row.count === 0) {
         const defaultSettings = {
           backgroundUrl: "",
-          publicDashboardLayout: [],
+          publicDashboardLayout: [
+            { id: "announcement", size: "full", label: "Pengumuman", visible: true },
+            { id: "kpiMonthCommission", size: "small", label: "Total Komisi (Bulan Ini)", visible: true },
+            { id: "kpiYesterdayTotal", size: "small", label: "Total Transaksi (Kemarin)", visible: true },
+            { id: "kpiTodayTotal", size: "small", label: "Total Transaksi (Hari Ini)", visible: true },
+            { id: "activeOutletsCount", size: "small", label: "Outlet Aktif (Bulan Ini)", visible: true },
+            { id: "kpiYesterdayCount", size: "small", label: "Jumlah Transaksi (Kemarin)", visible: true },
+            { id: "kpiTodayCount", size: "small", label: "Jumlah Transaksi (Hari Ini)", visible: true },
+            { id: "progressCommission", size: "full", label: "Progress Target Komisi", visible: true },
+            { id: "trendChart", size: "full", label: "Trend Biaya Admin (7 Hari)", visible: true },
+            { id: "tableTopOutlets", size: "small", label: "Top 5 Outlet (Komisi Bulan Ini)", visible: true },
+            { id: "chartTxType", size: "small", label: "Komposisi Tipe Transaksi (Bulan Ini)", visible: true },
+            { id: "utilAdminCalculator", size: "small", label: "Kalkulator Biaya Admin", visible: true },
+            { id: "globalCommissionSummary", size: "small", label: "Ringkasan Global (Bulan Ini)", visible: false },
+            { id: "kpiMonthTopUser", size: "half", label: "Outlet Teraktif (Bulan Ini)", visible: false },
+            { id: "tableRecentTx", size: "half", label: "5 Transaksi Terkini", visible: false }
+          ],
           monthStartDay: 29,
           monthEndDay: 28,
           outletCommissionPercentage: 20,

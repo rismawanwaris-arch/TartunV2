@@ -3357,6 +3357,14 @@ const AppHandlers = {
     },
 
     setDefaultDateFilters() {
+        const today = new Date();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+        this.dom.filterStartDate.value = this.utils.formatDateForInput(yesterday);
+        this.dom.filterEndDate.value = this.utils.formatDateForInput(today);
+    },
+
+    setToCurrentBusinessMonth() {
         const settings = this.state.settings || this.state.defaultConfig || {};
         const startDay = settings.monthStartDay || 29;
         const endDay = settings.monthEndDay || 28;
@@ -3385,6 +3393,9 @@ const AppHandlers = {
         
         this.dom.filterStartDate.value = this.utils.formatDateForInput(startDate);
         this.dom.filterEndDate.value = this.utils.formatDateForInput(endDate);
+        
+        // Trigger render
+        this.ui.renderFilteredContent();
     },
 
     async handleFullRefresh() {

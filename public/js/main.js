@@ -175,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 filterEndDate: document.getElementById('filter-end-date'),
                 filterType: document.getElementById('filter-type'),
                 resetBtn: document.getElementById('reset-btn'),
+                businessMonthBtn: document.getElementById('business-month-btn'),
                 statusDisplay: document.getElementById('status-display'),
                 themeToggle: document.getElementById('theme-toggle'),
                 themeToggleIcon: document.getElementById('theme-toggle-icon'),
@@ -243,6 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
             this.dom.filterType.addEventListener('change', () => this.ui.renderFilteredContent());
             
             this.dom.resetBtn.addEventListener('click', this.handlers.handleFilterReset);
+            this.dom.businessMonthBtn.addEventListener('click', this.handlers.setToCurrentBusinessMonth);
 
             this.dom.closeLoginModalBtn.addEventListener('click', this.ui.hideLoginModal);
             window.addEventListener('keydown', (e) => {
