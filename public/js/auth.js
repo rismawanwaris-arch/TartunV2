@@ -127,11 +127,12 @@ const AppAuth = {
             localStorage.setItem('fkof_token', data.token);
             localStorage.setItem('fkof_session_id', data.session_id);
             this.ui.hideLoader();
-            await this.handleAuthStateChange('SIGNED_IN', { user: data.user });
+            await this.auth.handleAuthStateChange('SIGNED_IN', { user: data.user });
         } catch (error) {
+            console.error("Login failed:", error);
             this.ui.hideLoader();
             this.ui.showLoginModal();
-            this.dom.loginError.textContent = "Email atau password salah.";
+            this.dom.loginError.textContent = error.message || "Email atau password salah.";
         }
     },
 
@@ -152,7 +153,7 @@ const AppAuth = {
         localStorage.removeItem('fkof_token');
         
         this.state.activeView = 'dashboard';
-        await this.handleAuthStateChange('SIGNED_OUT', null);
+        await this.auth.handleAuthStateChange('SIGNED_OUT', null);
         this.ui.hideLoader();
         location.reload();
     }
