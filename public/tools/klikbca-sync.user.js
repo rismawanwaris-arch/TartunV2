@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tartun V2 - KlikBCA QRIS Multi-Outlet Auto Sync
 // @namespace    https://tartun.app/
-// @version      3.2.0
+// @version      3.3.0
 // @description  Otomasi penarikan mutasi transaksi QRIS dari seluruh 45 outlet di qr.klikbca.com langsung ke sistem Tartun V2
 // @author       Tartun V2 AI
 // @match        https://qr.klikbca.com/*
@@ -25,11 +25,20 @@
 
     let isScanning = false;
     let shouldStopScan = false;
+    let manualDropdownElement = null;
 
-    // 1. PARSER DOM TRANSAKSI (TERBUKTI 100% AKURAT & SUKSES)
+    // Helper aman untuk membaca class
+    function getElementClasses(el) {
+        if (!el) return '';
+        if (typeof el.className === 'string') return el.className;
+        if (el.getAttribute) return el.getAttribute('class') || '';
+        return '';
+    }
+
+    // 1. PARSER DOM TRANSAKSI (MEMBACA TRANSAKSI YANG TAMPIL DI LAYAR)
     function parseTransactionsFromDOM() {
         const items = [];
-        const rawText = document.body.innerText;
+        const rawText = document.body.innerText || '';
 
         let currentNmid = '';
         let currentOutletName = '';
@@ -80,154 +89,210 @@
         return items;
     }
 
-    // 2. SMART UI CRAWLER: MENGKLIK DROPDOWN OUTLET OTOMATIS
+    // 2. DETEKSI ELEMEN DROPDOWN DENGAN BERBAGAI STRATEGI
+    function findDropdownTrigger() {
+        if (manualDropdownElement && document.body.contains(manualDropdownElement)) {
+            return manualDropdownElement;
+        }
+
+        // Cari elemen yang memiliki teks NMID di bagian atas
+        const allElements = Array.from(document.querySelectorAll('div, button, a, span, p, header, section'));
+        
+        // Strategi A: Elemen yang berisi NMID dan memiliki anak panah / icon
+        const candidates = allElements.filter(el => {
+            const txt = (el.innerText || '').trim();
+            const hasNmid = txt.includes('NMID') || txt.includes('ID102');
+            const isShort = txt.length < 150 && txt.length > 5;
+            const hasChildren = el.children.length >= 1 && el.children.length <= 8;
+            return hasNmid && isShort && hasChildren;
+        });
+
+        if (candidates.length > 0) {
+            // Pilih elemen terdalam yang clickable
+            candidates.sort((a, b) => a.innerText.length - b.innerText.length);
+            return candidates[0];
+        }
+
+        // Strategi B: Cari berdasarkan class
+        const classMatch = document.querySelector('[class*="merchant-select"], [class*="outlet-select"], [class*="dropdown-trigger"], [class*="select-trigger"]');
+        if (classMatch) return classMatch;
+
+        return null;
+    }
+
+    function getDropdownOptionElements() {
+        const all = Array.from(document.querySelectorAll('*'));
+        const options = all.filter(el => {
+            if (el.children.length > 4) return false;
+            const txt = (el.innerText || '').trim();
+            const isOutlet = (txt.includes('ID102') || txt.includes('CELL') || txt.includes('QR') || txt.includes('NMID')) && txt.length < 100;
+            const isVisible = el.offsetHeight > 12 && el.offsetWidth > 50;
+            // Pastikan bukan trigger di header
+            const isNotHeader = !txt.includes('TOTAL TRANSAKSI');
+            return isOutlet && isVisible && isNotHeader;
+        });
+
+        // Filter duplikat parent/child
+        const leafOptions = options.filter(el => {
+            return !options.some(other => other !== el && el.contains(other));
+        });
+
+        return leafOptions;
+    }
+
+    function clickElement(el) {
+        if (!el) return;
+        try {
+            el.scrollIntoView({ block: 'center', behavior: 'instant' });
+            ['mouseenter', 'mouseover', 'mousedown', 'mouseup', 'click'].forEach(evtType => {
+                el.dispatchEvent(new MouseEvent(evtType, { bubbles: true, cancelable: true, view: window }));
+            });
+            if (typeof el.click === 'function') {
+                el.click();
+            }
+        } catch (e) {
+            console.error("Error clicking element:", e);
+        }
+    }
+
+    // 3. SMART UI CRAWLER (AUTO-KLIK SELURUH OUTLET DI LAYAR)
     async function runSmartUiCrawler() {
         if (isScanning) return;
         isScanning = true;
         shouldStopScan = false;
         setUiRunningState(true);
 
-        logTerminal('========================================', 'info');
-        logTerminal('🚀 MEMULAI OTOMASI CRAWLER 45 OUTLET', 'highlight');
-        logTerminal('========================================', 'info');
+        try {
+            logTerminal('========================================', 'info');
+            logTerminal('🚀 MEMULAI OTOMASI CRAWLER 45 OUTLET', 'highlight');
+            logTerminal('========================================', 'info');
 
-        let allCollectedRows = [];
-        let totalNominal = 0;
+            let allCollectedRows = [];
+            let totalNominal = 0;
 
-        // Langkah 1: Buka dropdown untuk membaca semua outlet yang tersedia
-        logTerminal('🔍 Mendeteksi daftar outlet di akun KlikBCA...', 'info');
-        const trigger = findDropdownTrigger();
-        if (!trigger) {
-            logTerminal('❌ Tidak menemukan tombol pilihan outlet di bagian atas.', 'error');
-            alert('Tombol pilihan outlet tidak ditemukan di layar. Pastikan Anda berada di halaman mutasi KlikBCA.');
-            isScanning = false;
-            setUiRunningState(false);
-            return;
-        }
+            logTerminal('🔍 Mendeteksi tombol dropdown outlet...', 'info');
+            const trigger = findDropdownTrigger();
 
-        // Buka dropdown
-        clickElement(trigger);
-        await new Promise(r => setTimeout(r, 800));
+            if (!trigger) {
+                logTerminal('❌ Tombol pilihan outlet tidak terdeteksi otomatis.', 'error');
+                logTerminal('💡 Klik tombol "🎯 Pilih Dropdown Manual" lalu klik menu outlet di layar Anda.', 'highlight');
+                alert('Tombol outlet tidak terdeteksi otomatis.\n\nSilakan klik tombol "🎯 Pilih Dropdown Manual" di panel, lalu klik kotak nama outlet di bagian atas layar Anda.');
+                isScanning = false;
+                setUiRunningState(false);
+                return;
+            }
 
-        let optionElements = getDropdownOptionElements();
-        logTerminal(`📋 Berhasil mendeteksi ${optionElements.length} outlet terdaftar.`, 'success');
+            logTerminal(`✓ Tombol outlet ditemukan: "${(trigger.innerText || '').slice(0, 35)}..."`, 'success');
 
-        if (optionElements.length === 0) {
-            logTerminal('⚠️ Menu daftar outlet kosong atau tertutup. Mencoba menutup dan mengulang...', 'error');
+            // Buka dropdown
+            logTerminal('📂 Membuka menu dropdown...', 'info');
             clickElement(trigger);
-            await new Promise(r => setTimeout(r, 600));
-            optionElements = getDropdownOptionElements();
-        }
+            await new Promise(r => setTimeout(r, 1000));
 
-        const totalOutlets = optionElements.length > 0 ? optionElements.length : 1;
+            let optionElements = getDropdownOptionElements();
+            logTerminal(`📋 Terdeteksi ${optionElements.length} pilihan outlet di menu.`, 'highlight');
 
-        // Tutup sementara
-        clickElement(trigger);
-        await new Promise(r => setTimeout(r, 400));
-
-        // Langkah 2: Loop dan klik masing-masing outlet
-        for (let i = 0; i < totalOutlets; i++) {
-            if (shouldStopScan) {
-                logTerminal('⏹️ Proses dibatalkan oleh pengguna.', 'error');
-                break;
+            if (optionElements.length === 0) {
+                logTerminal('⚠️ Menu belum terbuka, mencoba klik kedua...', 'dim');
+                clickElement(trigger);
+                await new Promise(r => setTimeout(r, 1000));
+                optionElements = getDropdownOptionElements();
             }
 
-            const currentStep = i + 1;
-            const pct = Math.round((currentStep / totalOutlets) * 100);
-
-            // Buka dropdown lagi
-            const currentTrigger = findDropdownTrigger();
-            if (currentTrigger) {
-                clickElement(currentTrigger);
-                await new Promise(r => setTimeout(r, 500));
+            if (optionElements.length === 0) {
+                logTerminal('❌ Menu daftar outlet tidak dapat dibuka otomatis.', 'error');
+                alert('Menu outlet belum berhasil terbuka.\nPastikan Anda mengklik kotak outlet di atas layar terlebih dahulu, lalu klik Tarik Semua.');
+                isScanning = false;
+                setUiRunningState(false);
+                return;
             }
 
-            const currentOptions = getDropdownOptionElements();
-            if (currentOptions[i]) {
-                const outletText = currentOptions[i].innerText.replace(/\n/g, ' ').trim();
-                updateProgressBar(currentStep, totalOutlets, pct, outletText);
+            const totalOutlets = optionElements.length;
+            logTerminal(`🚀 Memulai penarikan untuk seluruh ${totalOutlets} outlet...`, 'success');
 
-                // Klik outlet ke-i
-                clickElement(currentOptions[i]);
+            // Tutup sementara
+            clickElement(trigger);
+            await new Promise(r => setTimeout(r, 400));
 
-                // Tunggu BCA memuat dan mendekripsi data di layar
-                await new Promise(r => setTimeout(r, 1200));
-
-                // Baca transaksi yang tampil
-                const rows = parseTransactionsFromDOM();
-                if (rows.length > 0) {
-                    const sum = rows.reduce((s, r) => s + r.jumlah, 0);
-                    allCollectedRows.push(...rows);
-                    totalNominal += sum;
-                    logTerminal(`[${currentStep}/${totalOutlets}] ✓ ${outletText}: +${rows.length} trx (Rp ${sum.toLocaleString('id-ID')})`, 'success');
-                } else {
-                    logTerminal(`[${currentStep}/${totalOutlets}] ○ ${outletText}: 0 trx`, 'dim');
+            // Loop seluruh outlet
+            for (let i = 0; i < totalOutlets; i++) {
+                if (shouldStopScan) {
+                    logTerminal('⏹️ Proses dihentikan oleh pengguna.', 'error');
+                    break;
                 }
 
-                updateLiveStats(allCollectedRows.length, totalNominal);
+                const currentStep = i + 1;
+                const pct = Math.round((currentStep / totalOutlets) * 100);
+
+                // Buka kembali dropdown
+                const currentTrigger = findDropdownTrigger();
+                if (currentTrigger) {
+                    clickElement(currentTrigger);
+                    await new Promise(r => setTimeout(r, 600));
+                }
+
+                const currentOptions = getDropdownOptionElements();
+                if (currentOptions[i]) {
+                    const outletText = (currentOptions[i].innerText || `Outlet #${currentStep}`).replace(/\n/g, ' ').trim();
+                    updateProgressBar(currentStep, totalOutlets, pct, outletText);
+
+                    // Klik outlet
+                    clickElement(currentOptions[i]);
+
+                    // Tunggu render
+                    await new Promise(r => setTimeout(r, 1300));
+
+                    // Baca transaksi di layar
+                    const rows = parseTransactionsFromDOM();
+                    if (rows.length > 0) {
+                        const sum = rows.reduce((s, r) => s + r.jumlah, 0);
+                        allCollectedRows.push(...rows);
+                        totalNominal += sum;
+                        logTerminal(`[${currentStep}/${totalOutlets}] ✓ ${outletText}: +${rows.length} trx (Rp ${sum.toLocaleString('id-ID')})`, 'success');
+                    } else {
+                        logTerminal(`[${currentStep}/${totalOutlets}] ○ ${outletText}: 0 trx`, 'dim');
+                    }
+
+                    updateLiveStats(allCollectedRows.length, totalNominal);
+                }
             }
-        }
 
-        // Langkah 3: Hapus duplikat dan kirim ke Tartun V2
-        const uniqueMap = new Map();
-        allCollectedRows.forEach(r => {
-            const key = `${r.tanggal}|${r.nama}|${r.jumlah}|${r.keterangan}`;
-            if (!uniqueMap.has(key)) uniqueMap.set(key, r);
-        });
-        const finalRows = Array.from(uniqueMap.values());
+            // Hapus duplikat
+            const uniqueMap = new Map();
+            allCollectedRows.forEach(r => {
+                const key = `${r.tanggal}|${r.nama}|${r.jumlah}|${r.keterangan}`;
+                if (!uniqueMap.has(key)) uniqueMap.set(key, r);
+            });
+            const finalRows = Array.from(uniqueMap.values());
 
-        if (finalRows.length > 0) {
-            logTerminal('----------------------------------------', 'info');
-            logTerminal(`📤 Mengirim ${finalRows.length} total transaksi ke Tartun V2 (${config.tartunUrl})...`, 'highlight');
+            if (finalRows.length > 0) {
+                logTerminal('----------------------------------------', 'info');
+                logTerminal(`📤 Mengirim ${finalRows.length} total transaksi ke Tartun V2...`, 'highlight');
 
-            try {
-                const res = await sendDataToTartun(finalRows);
-                logTerminal(`🎉 BERHASIL! ${res.count} transaksi tersimpan di database Tartun V2.`, 'success');
-                alert(`🎉 SINKRONISASI SELESAI!\n\n• Outlet Dipindai: ${totalOutlets} Outlet\n• Transaksi Ditemukan: ${finalRows.length} Transaksi\n• Total Nominal: Rp ${totalNominal.toLocaleString('id-ID')}\n\nSemua data berhasil masuk ke database Tartun V2.`);
-            } catch (err) {
-                logTerminal(`❌ GAGAL KIRIM KE TARTUN: ${err.message}`, 'error');
-                alert(`Gagal mengirim ke Tartun V2: ${err.message}`);
+                try {
+                    const res = await sendDataToTartun(finalRows);
+                    logTerminal(`🎉 BERHASIL! ${res.count} transaksi tersimpan di database Tartun V2.`, 'success');
+                    alert(`🎉 SINKRONISASI SELESAI!\n\n• Outlet Dipindai: ${totalOutlets} Outlet\n• Transaksi Ditemukan: ${finalRows.length} Transaksi\n• Total Nominal: Rp ${totalNominal.toLocaleString('id-ID')}\n\nSemua data berhasil masuk ke database Tartun V2.`);
+                } catch (err) {
+                    logTerminal(`❌ GAGAL KIRIM KE TARTUN: ${err.message}`, 'error');
+                    alert(`Gagal mengirim ke Tartun V2: ${err.message}`);
+                }
+            } else {
+                logTerminal('ℹ️ Selesai: Tidak ada transaksi QRIS pada tanggal terpilih.', 'dim');
+                alert('Tidak ada transaksi QRIS yang ditemukan pada tanggal ini.');
             }
-        } else {
-            logTerminal('ℹ️ Selesai: Tidak ada transaksi QRIS pada tanggal terpilih.', 'dim');
-            alert('Tidak ada transaksi QRIS yang ditemukan pada tanggal ini.');
+
+        } catch (err) {
+            logTerminal(`❌ ERROR CRITICAL: ${err.message}`, 'error');
+            console.error("Critical error in crawler:", err);
+            alert(`Terjadi kesalahan: ${err.message}`);
+        } finally {
+            isScanning = false;
+            setUiRunningState(false);
         }
-
-        isScanning = false;
-        setUiRunningState(false);
     }
 
-    function findDropdownTrigger() {
-        // Cari container nama outlet / NMID di header
-        const candidates = Array.from(document.querySelectorAll('div, button, a, span, p')).filter(el => {
-            const txt = (el.innerText || '').toUpperCase();
-            return (txt.includes('NMID') || txt.includes('ALFA') || txt.includes('TOTAL TRANSAKSI') || txt.includes('CELL') || txt.includes('BAKSAR')) && el.children.length <= 8;
-        });
-        
-        for (const el of candidates) {
-            if (el.tagName === 'BUTTON' || el.getAttribute('role') === 'combobox' || (el.className && typeof el.className === 'string' && (el.className.includes('select') || el.className.includes('merchant') || el.className.includes('dropdown')))) {
-                return el;
-            }
-        }
-        return candidates[0] || null;
-    }
-
-    function getDropdownOptionElements() {
-        const options = Array.from(document.querySelectorAll('[role="option"], [class*="option"], [class*="item"], [class*="merchant"], [class*="list-item"], li')).filter(el => {
-            const txt = el.innerText || '';
-            return (txt.includes('ID102') || txt.includes('CELL') || txt.includes('QR') || txt.includes('NMID')) && el.offsetHeight > 15;
-        });
-        return options;
-    }
-
-    function clickElement(el) {
-        if (!el) return;
-        ['mouseenter', 'mouseover', 'mousedown', 'mouseup', 'click'].forEach(evtType => {
-            el.dispatchEvent(new MouseEvent(evtType, { bubbles: true, cancelable: true, view: window }));
-        });
-    }
-
-    // 3. PENGIRIMAN DATA KE TARTUN V2
+    // 4. PENGIRIMAN DATA KE TARTUN V2
     async function sendDataToTartun(rows) {
         if (!config.tartunToken) {
             logTerminal('🔑 Melakukan login ke Tartun V2...', 'info');
@@ -290,7 +355,39 @@
         });
     }
 
-    // 4. PEMBUATAN UI FLOATING HUD
+    // 5. FITUR PILIH DROPDOWN MANUAL (INTERACTIVE PICKER)
+    function activateManualElementPicker() {
+        logTerminal('🎯 MODE PILIH MANUAL: Klik kotak pilihan nama outlet di bagian atas layar Anda...', 'highlight');
+        alert('Mode Pilih Manual Aktif!\n\nSilakan KLIK SATU KALI pada kotak pilihan nama outlet di bagian atas halaman KlikBCA Anda.');
+
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(14, 165, 233, 0.15); z-index: 99999999; cursor: crosshair;
+        `;
+        document.body.appendChild(overlay);
+
+        const onPickerClick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            overlay.remove();
+
+            // Elemen di bawah kursor
+            const clickedEl = document.elementFromPoint(e.clientX, e.clientY);
+            if (clickedEl && !clickedEl.id.includes('tartun')) {
+                manualDropdownElement = clickedEl;
+                logTerminal(`✅ Elemen Terpilih: "${(clickedEl.innerText || clickedEl.tagName).slice(0, 35)}..."`, 'success');
+                alert(`✅ Berhasil memilih elemen dropdown!\n\nSekarang klik tombol "⚡ TARIK & SINKRONKAN SEMUA 45 OUTLET" untuk memulai.`);
+            }
+            window.removeEventListener('click', onPickerClick, true);
+        };
+
+        setTimeout(() => {
+            window.addEventListener('click', onPickerClick, true);
+        }, 100);
+    }
+
+    // 6. FLOATING UI WIDGET
     function createTartunFloatingWidget() {
         if (document.getElementById('tartun-sync-widget')) return;
 
@@ -374,10 +471,13 @@
                     </button>
 
                     <div style="display: flex; gap: 6px;">
-                        <button id="tartun-btn-sync-current" style="flex: 1; background: rgba(30, 41, 59, 0.8); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 11px; font-weight: 700; border-radius: 6px; padding: 8px; cursor: pointer;">
-                            📍 Layar Ini Saja (1 Outlet)
+                        <button id="tartun-btn-pick-element" style="flex: 1; background: rgba(30, 41, 59, 0.8); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); font-size: 10.5px; font-weight: 600; border-radius: 6px; padding: 7px; cursor: pointer;">
+                            🎯 Pilih Dropdown Manual
                         </button>
-                        <button id="tartun-btn-stop" style="display: none; background: #dc2626; color: #fff; font-size: 11px; font-weight: 700; border: none; border-radius: 6px; padding: 8px; cursor: pointer;">
+                        <button id="tartun-btn-sync-current" style="flex: 1; background: rgba(30, 41, 59, 0.8); color: #94a3b8; border: 1px solid rgba(255,255,255,0.1); font-size: 10.5px; font-weight: 600; border-radius: 6px; padding: 7px; cursor: pointer;">
+                            📍 Layar Ini Saja
+                        </button>
+                        <button id="tartun-btn-stop" style="display: none; background: #dc2626; color: #fff; font-size: 10.5px; font-weight: 700; border: none; border-radius: 6px; padding: 7px; cursor: pointer;">
                             ⏹️ Stop
                         </button>
                     </div>
@@ -425,6 +525,11 @@
         // Tombol Tarik Semua
         document.getElementById('tartun-btn-sync-all').onclick = async () => {
             await runSmartUiCrawler();
+        };
+
+        // Tombol Pilih Dropdown Manual
+        document.getElementById('tartun-btn-pick-element').onclick = () => {
+            activateManualElementPicker();
         };
 
         // Tombol Stop
