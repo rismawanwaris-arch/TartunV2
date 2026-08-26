@@ -2506,9 +2506,12 @@ const AppHandlers = {
     },
 
     async submitStagedData() {
-        const validDataToSubmit = (this.state.stagedData || [])
+        const validDataToSubmit = (this.state.stagingData || [])
             .filter(item => item.status === 'valid')
-            .map(item => item.data || item);
+            .map(item => {
+                const { hash, ...dbObject } = item.data;
+                return dbObject;
+            });
 
         if (validDataToSubmit.length === 0) {
             this.ui.showModal('Info', 'Tidak ada data valid untuk dikirim.');
