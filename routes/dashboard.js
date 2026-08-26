@@ -31,16 +31,17 @@ router.get('/kpi', async (req, res) => {
     let todayAdmin = 0;
     todayData.forEach(row => { todayAdmin += calculateAdminFee(row, settings.adminRules).fee; });
 
-    // Trend Biaya Admin 7 hari terakhir
+    // Trend Biaya Admin 7 hari terakhir (1 single fast query)
+    const sevenDaysData = await db.allAsync(`SELECT * FROM transactions WHERE tanggal >= date('now', '-7 day', 'localtime')`);
     const trendData = [];
     for (let i = 6; i >= 0; i--) {
-      // Kita bisa loop fetch atau gunakan JS (lebih baik JS kalau data kecil, tapi fetch aman)
-      const dayData = await db.allAsync(`SELECT * FROM transactions WHERE date(tanggal) = date('now', '-${i} day', 'localtime')`);
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayData = sevenDaysData.filter(r => (r.tanggal || '').startsWith(dateStr));
       let feeSum = 0;
       dayData.forEach(r => { feeSum += calculateAdminFee(r, settings.adminRules).fee; });
       
-      const d = new Date();
-      d.setDate(d.getDate() - i);
       const label = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       trendData.push({ label, value: feeSum });
     }

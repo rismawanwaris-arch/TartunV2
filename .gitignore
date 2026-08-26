@@ -1,0 +1,19 @@
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Database & Runtime Data
+data/*.db
+data/*.db-journal
+
+# Uploads
+uploads/avatars/*
+!uploads/avatars/.gitkeep
+
+# Environment & OS
+.env
+.env.local
+.DS_Store
+Thumbs.db

@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), async (req, res) => {
+router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), (req, res) => {
   const { rows, batch_id } = req.body;
   if (!rows || !Array.isArray(rows) || rows.length === 0) {
     return res.status(400).json({ error: 'No data provided' });
@@ -55,44 +55,58 @@ router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), a
 
   const trxBatchId = batch_id || crypto.randomUUID();
 
-  try {
-    const stmt = await db.runAsync('BEGIN TRANSACTION');
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
+    const stmt = db.prepare('INSERT INTO transactions (tanggal, nama, jumlah, keterangan, tipe_sheet, batch_id) VALUES (?, ?, ?, ?, ?, ?)');
     for (const row of rows) {
-      await db.runAsync(
-        'INSERT INTO transactions (tanggal, nama, jumlah, keterangan, tipe_sheet, batch_id) VALUES (?, ?, ?, ?, ?, ?)',
-        [row.tanggal, row.nama, row.jumlah, row.keterangan, row.tipe_sheet, trxBatchId]
-      );
+      stmt.run(row.tanggal, row.nama, row.jumlah, row.keterangan, row.tipe_sheet, trxBatchId);
     }
-    await db.runAsync('COMMIT');
+    stmt.finalize();
 
-    await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-      req.user.email, req.user.role, 'SUBMIT_DATA_SUCCESS', JSON.stringify({ batch_id: trxBatchId, count: rows.length })
-    ]);
+    db.run('COMMIT', (err) => {
+      if (err) {
+        db.run('ROLLBACK');
+        db.run('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
+          req.user.email, req.user.role, 'SUBMIT_DATA_FAIL', JSON.stringify({ error: err.message })
+        ]);
+        return res.status(500).json({ error: err.message });
+      }
 
-    res.json({ success: true, batch_id: trxBatchId, inserted: rows.length });
-  } catch (error) {
-    await db.runAsync('ROLLBACK');
-    await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-      req.user.email, req.user.role, 'SUBMIT_DATA_FAIL', JSON.stringify({ error: error.message })
-    ]);
-    res.status(500).json({ error: error.message });
-  }
+      db.run('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
+        req.user.email, req.user.role, 'SUBMIT_DATA_SUCCESS', JSON.stringify({ batch_id: trxBatchId, count: rows.length })
+      ]);
+
+      res.json({ success: true, batch_id: trxBatchId, inserted: rows.length });
+    });
+  });
 });
 
 router.post('/check-duplicates', authenticateToken, requireRole('Master', 'Admin', 'OED'), async (req, res) => {
   const { items } = req.body;
-  if (!items || !Array.isArray(items)) {
-    return res.status(400).json({ error: 'Invalid items array' });
+  if (!items || !Array.isArray(items) || items.length === 0) {
+    return res.json({ duplicates: [] });
   }
   try {
+    const dates = [...new Set(items.map(i => i.tanggal ? i.tanggal.split('T')[0] : ''))].filter(Boolean);
+    if (dates.length === 0) {
+      return res.json({ duplicates: [] });
+    }
+
+    const placeholders = dates.map(() => '?').join(',');
+    const existing = await db.allAsync(
+      `SELECT date(tanggal) as d, nama, jumlah, keterangan FROM transactions WHERE date(tanggal) IN (${placeholders})`,
+      dates
+    );
+
+    const existingSet = new Set(
+      existing.map(r => `${r.d}|${r.nama}|${Number(r.jumlah).toFixed(2)}|${r.keterangan || ''}`)
+    );
+
     const duplicates = [];
     for (const item of items) {
-      const datePart = item.tanggal.split('T')[0];
-      const match = await db.getAsync(
-        'SELECT id FROM transactions WHERE date(tanggal) = ? AND nama = ? AND jumlah = ? AND keterangan = ? LIMIT 1',
-        [datePart, item.nama, item.jumlah, item.keterangan]
-      );
-      if (match) {
+      const datePart = item.tanggal ? item.tanggal.split('T')[0] : '';
+      const key = `${datePart}|${item.nama}|${Number(item.jumlah).toFixed(2)}|${item.keterangan || ''}`;
+      if (existingSet.has(key)) {
         duplicates.push(item.hash);
       }
     }
@@ -133,44 +147,46 @@ router.delete('/batch/:batch_id', authenticateToken, requireRole('Master', 'Admi
 
 router.post('/delete-bulk', authenticateToken, requireRole('Master', 'Admin'), async (req, res) => {
   const { ids } = req.body;
-  if (!ids || !Array.isArray(ids)) {
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return res.status(400).json({ error: 'Invalid ids array' });
   }
   try {
-    await db.runAsync('BEGIN TRANSACTION');
-    for (const id of ids) {
-      await db.runAsync('DELETE FROM transactions WHERE id = ?', [id]);
-    }
-    await db.runAsync('COMMIT');
+    const placeholders = ids.map(() => '?').join(',');
+    const result = await db.runAsync(`DELETE FROM transactions WHERE id IN (${placeholders})`, ids);
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-      req.user.email, req.user.role, 'DELETE_SELECTED', JSON.stringify({ count: ids.length })
+      req.user.email, req.user.role, 'DELETE_SELECTED', JSON.stringify({ count: result.changes })
     ]);
-    res.json({ success: true, count: ids.length });
+    res.json({ success: true, count: result.changes });
   } catch (error) {
-    await db.runAsync('ROLLBACK');
     res.status(500).json({ error: error.message });
   }
 });
 
-router.put('/bulk-update', authenticateToken, requireRole('Master', 'Admin'), async (req, res) => {
-  const { updates } = req.body; // [{id, data: {nama, jumlah...}}]
-  try {
-    await db.runAsync('BEGIN TRANSACTION');
+router.put('/bulk-update', authenticateToken, requireRole('Master', 'Admin'), (req, res) => {
+  const { updates } = req.body;
+  if (!updates || !Array.isArray(updates) || updates.length === 0) {
+    return res.json({ success: true });
+  }
+
+  db.serialize(() => {
+    db.run('BEGIN TRANSACTION');
     for (const item of updates) {
       const keys = Object.keys(item.data);
       const values = Object.values(item.data);
       const setStr = keys.map(k => `${k} = ?`).join(', ');
-      await db.runAsync(`UPDATE transactions SET ${setStr} WHERE id = ?`, [...values, item.id]);
+      db.run(`UPDATE transactions SET ${setStr} WHERE id = ?`, [...values, item.id]);
     }
-    await db.runAsync('COMMIT');
-    await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-      req.user.email, req.user.role, 'BULK_UPDATE', JSON.stringify({ count: updates.length })
-    ]);
-    res.json({ success: true });
-  } catch (error) {
-    await db.runAsync('ROLLBACK');
-    res.status(500).json({ error: error.message });
-  }
+    db.run('COMMIT', (err) => {
+      if (err) {
+        db.run('ROLLBACK');
+        return res.status(500).json({ error: err.message });
+      }
+      db.run('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
+        req.user.email, req.user.role, 'BULK_UPDATE', JSON.stringify({ count: updates.length })
+      ]);
+      res.json({ success: true });
+    });
+  });
 });
 
 module.exports = router;
