@@ -47,35 +47,63 @@ const AppUtils = {
         return parseFloat(numberString) || 0;
     },
 
-    parseDateWithPriority(dateString, formats) {
+    parseDateWithPriority(dateString, formats = []) {
+        if (!dateString || typeof dateString !== 'string') return null;
+        const str = dateString.trim();
+
+        // Ekstrak komponen jam, menit, dan detik jika ada (mendukung format titik atau titik dua, e.g. "21.43.33", "21:43:33", "21.43")
+        let hours = 0, minutes = 0, seconds = 0;
+        const timeMatch = str.match(/(?:[,\sT]+)(\d{1,2})[:.](\d{1,2})(?:[:.](\d{1,2}))?(?:\s*(AM|PM))?/i);
+        if (timeMatch) {
+            hours = parseInt(timeMatch[1], 10) || 0;
+            minutes = parseInt(timeMatch[2], 10) || 0;
+            seconds = parseInt(timeMatch[3], 10) || 0;
+            const ampm = timeMatch[4] ? timeMatch[4].toUpperCase() : null;
+            if (ampm === 'PM' && hours < 12) hours += 12;
+            if (ampm === 'AM' && hours === 12) hours = 0;
+        }
+
         for (const format of formats) {
             if (!format.active) continue;
 
             let date = null;
             try {
                 if (format.id === 'iso_8601') {
-                    date = new Date(dateString);
+                    date = new Date(str);
                     if (!isNaN(date.getTime())) return date;
                 } else if (format.id === 'yyyy_mm_dd') {
-                    if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
-                        date = new Date(dateString);
+                    const ymdParts = str.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+                    if (ymdParts) {
+                        date = new Date(parseInt(ymdParts[1], 10), parseInt(ymdParts[2], 10) - 1, parseInt(ymdParts[3], 10), hours, minutes, seconds);
                         if (!isNaN(date.getTime())) return date;
                     }
                 } else if (format.id === 'dd_mm_yyyy') {
-                    const dmyParts = dateString.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+                    const dmyParts = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
                     if (dmyParts) {
-                        date = new Date(`${dmyParts[3]}-${dmyParts[2]}-${dmyParts[1]}`);
+                        date = new Date(parseInt(dmyParts[3], 10), parseInt(dmyParts[2], 10) - 1, parseInt(dmyParts[1], 10), hours, minutes, seconds);
                         if (!isNaN(date.getTime())) return date;
                     }
                 } else if (format.id === 'mm_dd_yyyy') {
-                    const mdyParts = dateString.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+                    const mdyParts = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
                     if (mdyParts) {
-                        date = new Date(`${mdyParts[3]}-${mdyParts[1]}-${mdyParts[2]}`);
+                        date = new Date(parseInt(mdyParts[3], 10), parseInt(mdyParts[1], 10) - 1, parseInt(mdyParts[2], 10), hours, minutes, seconds);
                         if (!isNaN(date.getTime())) return date;
                     }
                 }
             } catch (e) { /* Abaikan dan lanjut */ }
         }
+
+        // Fallback global jika format prioritas tidak cocok
+        try {
+            const dmyMatch = str.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+            if (dmyMatch) {
+                const date = new Date(parseInt(dmyMatch[3], 10), parseInt(dmyMatch[2], 10) - 1, parseInt(dmyMatch[1], 10), hours, minutes, seconds);
+                if (!isNaN(date.getTime())) return date;
+            }
+            const fallback = new Date(str);
+            if (!isNaN(fallback.getTime())) return fallback;
+        } catch (e) {}
+
         return null;
     },
 
