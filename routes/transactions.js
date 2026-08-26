@@ -47,7 +47,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), (req, res) => {
+router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), async (req, res) => {
   const { rows, batch_id } = req.body;
   if (!rows || !Array.isArray(rows) || rows.length === 0) {
     return res.status(400).json({ error: 'No data provided' });
@@ -55,30 +55,32 @@ router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), (
 
   const trxBatchId = batch_id || crypto.randomUUID();
 
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
-    const stmt = db.prepare('INSERT INTO transactions (tanggal, nama, jumlah, keterangan, tipe_sheet, batch_id) VALUES (?, ?, ?, ?, ?, ?)');
-    for (const row of rows) {
-      stmt.run(row.tanggal, row.nama, row.jumlah, row.keterangan, row.tipe_sheet, trxBatchId);
-    }
-    stmt.finalize();
-
-    db.run('COMMIT', (err) => {
-      if (err) {
-        db.run('ROLLBACK');
-        db.run('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-          req.user.email, req.user.role, 'SUBMIT_DATA_FAIL', JSON.stringify({ error: err.message })
-        ]);
-        return res.status(500).json({ error: err.message });
+  try {
+    await db.runAsync('BEGIN TRANSACTION');
+    const chunkSize = 50;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      const chunk = rows.slice(i, i + chunkSize);
+      const valuePlaceholders = chunk.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
+      const params = [];
+      for (const r of chunk) {
+        params.push(r.tanggal, r.nama, r.jumlah, r.keterangan, r.tipe_sheet, trxBatchId);
       }
+      await db.runAsync(`INSERT INTO transactions (tanggal, nama, jumlah, keterangan, tipe_sheet, batch_id) VALUES ${valuePlaceholders}`, params);
+    }
+    await db.runAsync('COMMIT');
 
-      db.run('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-        req.user.email, req.user.role, 'SUBMIT_DATA_SUCCESS', JSON.stringify({ batch_id: trxBatchId, count: rows.length })
-      ]);
+    await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
+      req.user.email, req.user.role, 'SUBMIT_DATA_SUCCESS', JSON.stringify({ batch_id: trxBatchId, count: rows.length })
+    ]);
 
-      res.json({ success: true, batch_id: trxBatchId, inserted: rows.length });
-    });
-  });
+    res.json({ success: true, batch_id: trxBatchId, inserted: rows.length });
+  } catch (error) {
+    try { await db.runAsync('ROLLBACK'); } catch (_) {}
+    await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
+      req.user.email, req.user.role, 'SUBMIT_DATA_FAIL', JSON.stringify({ error: error.message })
+    ]);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 router.post('/check-duplicates', authenticateToken, requireRole('Master', 'Admin', 'OED'), async (req, res) => {

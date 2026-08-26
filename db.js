@@ -14,10 +14,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 function initDb() {
   db.serialize(() => {
-    db.run('PRAGMA journal_mode = WAL;');
+    db.run('PRAGMA journal_mode = MEMORY;');
     db.run('PRAGMA synchronous = NORMAL;');
     db.run('PRAGMA cache_size = 10000;');
     db.run('PRAGMA temp_store = MEMORY;');
+    db.run('PRAGMA busy_timeout = 5000;');
 
     db.run(`
       CREATE TABLE IF NOT EXISTS users (
