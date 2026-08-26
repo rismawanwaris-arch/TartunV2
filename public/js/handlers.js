@@ -2506,24 +2506,19 @@ const AppHandlers = {
     },
 
     async submitStagedData() {
-        const validDataToSubmit = this.state.stagingData
+        const validDataToSubmit = (this.state.stagedData || [])
             .filter(item => item.status === 'valid')
-            .map(item => {
-                const {
-                    hash,
-                    ...dbObject
-                } = item.data;
-                return dbObject;
-            });
+            .map(item => item.data || item);
 
         if (validDataToSubmit.length === 0) {
             this.ui.showModal('Info', 'Tidak ada data valid untuk dikirim.');
             return;
         }
 
-        this.ui.showLoader(`Mengirim ${validDataToSubmit.length} data baru...`);
-        const batchId = crypto.randomUUID();
+        const batchId = this.utils.generateUUID();
         validDataToSubmit.forEach(d => d.batch_id = batchId);
+
+        this.ui.showLoader(`Mengirim ${validDataToSubmit.length} data baru...`);
 
         try {
             await this.api.addDataBatch(validDataToSubmit);
@@ -2579,7 +2574,7 @@ const AppHandlers = {
             return;
         }
         data.tipe_sheet = routeTo;
-        data.batch_id = `single-${crypto.randomUUID()}`;
+        data.batch_id = `single-${this.utils.generateUUID()}`;
 
         this.ui.showLoader('Menyimpan transaksi tunggal...');
         try {
@@ -2592,6 +2587,7 @@ const AppHandlers = {
             form.reset();
             this.handlers.handleFullRefresh();
         } catch (error) {
+            this.ui.hideLoader();
             this.ui.showModal('Error', `Gagal menyimpan: ${error.message}`);
         }
     },
