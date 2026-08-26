@@ -2,9 +2,12 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install dependencies
+# Install build dependencies for compiling sqlite3 native addon
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
+
+# Install dependencies and build sqlite3 from source for current system libc
 COPY package*.json ./
-RUN npm install --omit=dev
+RUN npm install --build-from-source=sqlite3 --omit=dev
 
 COPY . .
 
