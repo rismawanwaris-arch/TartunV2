@@ -1965,16 +1965,12 @@ const AppHandlers = {
         document.getElementById('cancel-staging-btn').onclick = this.handlers.resetInputView;
         document.getElementById('upload-csv-btn').onclick = () => document.getElementById('csv-file-input').click();
         document.getElementById('csv-file-input').onchange = this.handlers.handleCsvFileUpload;
-        
-        // Initialize KlikBCA Date Input
-        const klikBcaDate = document.getElementById('klikbca-date-input');
-        if (klikBcaDate && !klikBcaDate.value) {
-            klikBcaDate.value = this.utils.formatDateForInput(new Date());
-        }
-        
-        const processKlikBca = document.getElementById('process-klikbca-btn');
-        if (processKlikBca) {
-            processKlikBca.onclick = () => this.handlers.processAndStageKlikBcaData();
+
+        const uploadBcaBtn = document.getElementById('upload-bca-excel-btn');
+        const bcaInput = document.getElementById('bca-excel-file-input');
+        if (uploadBcaBtn && bcaInput) {
+            uploadBcaBtn.onclick = () => bcaInput.click();
+            bcaInput.onchange = this.handlers.handleBcaExcelFileUpload;
         }
         
         document.getElementById('submit-valid-data-btn').onclick = this.handlers.submitStagedData;
@@ -2053,6 +2049,11 @@ const AppHandlers = {
         if(csvInput) csvInput.value = '';
         document.getElementById('csv-file-name').textContent = '';
 
+        const bcaExcelInput = document.getElementById('bca-excel-file-input');
+        if (bcaExcelInput) bcaExcelInput.value = '';
+        const bcaExcelName = document.getElementById('bca-excel-file-name');
+        if (bcaExcelName) bcaExcelName.textContent = '';
+
         this.state.stagingData = [];
         this.state.activeStagingFilter = 'all';
         if (this.state.virtualScrollInstances.staging) {
@@ -2076,16 +2077,100 @@ const AppHandlers = {
         reader.readAsText(file);
     },
 
-    async processAndStageData(rawData = null, delimiter = null) {
-        if (rawData === null) {
-            const spreadsheetText = document.getElementById('data-input-area').value.trim();
-            const klikbcaText = document.getElementById('klikbca-input-area').value.trim();
-            
-            if (!spreadsheetText && klikbcaText) {
-                this.handlers.processAndStageKlikBcaData();
-                return;
+    handleBcaExcelFileUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const nameLabel = document.getElementById('bca-excel-file-name');
+        if (nameLabel) nameLabel.textContent = file.name;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                this.ui.showLoader('Membaca & menggabungkan seluruh cabang Excel BCA...');
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                const bcaTrx = this.utils.parseMerchantBcaWorkbook(workbook);
+                if (!bcaTrx || bcaTrx.length === 0) {
+                    this.ui.showModal('Info', 'Tidak ditemukan transaksi valid di dalam file Excel ini.');
+                    return;
+                }
+
+                await this.handlers.stageParsedTransactions(bcaTrx, `Laporan Excel BCA (${workbook.SheetNames.length} Cabang)`);
+            } catch (err) {
+                this.ui.showModal('Error', `Gagal memproses file Excel BCA: ${err.message}`);
+            } finally {
+                this.ui.hideLoader();
             }
-        }
+        };
+        reader.readAsArrayBuffer(file);
+    },
+
+    async stageParsedTransactions(rawItems, sourceName = 'Data Terimport') {
+        const {
+            exceptionKeywords = [],
+            nameConsolidation = {}
+        } = this.state.settings.dataParsingSettings || {};
+
+        const processedHashes = new Set();
+        const stagedItems = [];
+
+        rawItems.forEach((raw, index) => {
+            const item = {
+                originalIndex: index,
+                rawInput: `${raw.tanggal} | ${raw.nama} | ${raw.jumlah} | ${raw.keterangan}`,
+                status: 'invalid',
+                errorReason: '',
+                data: null
+            };
+
+            try {
+                const lowerKet = (raw.keterangan || '').toLowerCase();
+                if (exceptionKeywords.some(kw => lowerKet.includes(kw.toLowerCase()))) {
+                    return;
+                }
+
+                let nama = raw.nama;
+                const normalizedName = this.utils.normalizeName(nama);
+                nama = nameConsolidation[normalizedName.toUpperCase()] || normalizedName;
+
+                const tanggalStr = typeof raw.tanggal === 'string' ? raw.tanggal : (new Date(raw.tanggal)).toISOString();
+                const datePart = tanggalStr.split('T')[0];
+                const rowHash = `${datePart}|${nama}|${raw.jumlah}|${raw.keterangan}`;
+
+                if (processedHashes.has(rowHash)) {
+                    item.status = 'duplicate_input';
+                    item.errorReason = 'Duplikat di input';
+                    item.data = {
+                        tanggal: tanggalStr,
+                        nama: nama,
+                        jumlah: raw.jumlah,
+                        keterangan: raw.keterangan,
+                        tipe_sheet: raw.tipe_sheet || 'MANUAL',
+                        hash: rowHash
+                    };
+                    stagedItems.push(item);
+                    return;
+                }
+                processedHashes.add(rowHash);
+
+                item.status = 'valid';
+                item.errorReason = '';
+                item.data = {
+                    tanggal: tanggalStr,
+                    nama: nama,
+                    jumlah: raw.jumlah,
+                    keterangan: raw.keterangan,
+                    tipe_sheet: raw.tipe_sheet || 'MANUAL',
+                    hash: rowHash
+                };
+                stagedItems.push(item);
+            } catch (err) {
+                item.errorReason = `Error: ${err.message}`;
+                stagedItems.push(item);
+            }
+        });
 
         if (this.state.virtualScrollInstances.staging) {
             this.state.virtualScrollInstances.staging.destroy();
@@ -2102,36 +2187,100 @@ const AppHandlers = {
         });
         this.state.virtualScrollInstances.staging = vsInstance;
         vsInstance.initialize();
-        
-        const dataToProcess = rawData !== null ? rawData : document.getElementById('data-input-area').value;
-        
-        if (!dataToProcess.trim()) {
-            this.ui.showModal('Info', 'Area input data kosong.');
-            return;
+
+        this.ui.showLoader(`Memvalidasi ${stagedItems.length} transaksi...`);
+
+        try {
+            const { finalStagedData } = await this.handlers.checkForDuplicates(stagedItems);
+            this.state.stagingData = finalStagedData;
+            this.state.activeStagingFilter = 'all';
+            document.querySelectorAll('.staging-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.statusFilter === 'all'));
+
+            this.handlers.filterAndRenderStagingTable();
+            this.ui.updateStagingStatsAndSubmitBtn();
+
+            const stagingArea = document.getElementById('staging-area');
+            const contentWrapper = document.getElementById('input-content-wrapper');
+
+            contentWrapper.classList.remove('lg:grid-cols-1');
+            contentWrapper.classList.add('lg:grid-cols-3');
+
+            stagingArea.classList.remove('hidden');
+        } catch (e) {
+            this.ui.showModal('Error', `Gagal memvalidasi data: ${e.message}`);
+        } finally {
+            this.ui.hideLoader();
         }
-        
-        this.ui.showLoader('Menganalisis dan memvalidasi data...');
-        
-        const finalDelimiter = delimiter !== null ? delimiter : this.state.settings.dataParsingSettings.pasteDelimiter;
-        const parsedItems = this.handlers.parseRawDataInput(dataToProcess, finalDelimiter);
-        const { finalStagedData } = await this.handlers.checkForDuplicates(parsedItems);
-        
-        this.state.stagingData = finalStagedData;
-        this.state.activeStagingFilter = 'all';
-        document.querySelectorAll('.staging-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.statusFilter === 'all'));
+    },
 
-        this.handlers.filterAndRenderStagingTable();
-        this.ui.updateStagingStatsAndSubmitBtn();
-        
-        const stagingArea = document.getElementById('staging-area');
-        const contentWrapper = document.getElementById('input-content-wrapper');
+    async processAndStageData(rawData = null, delimiter = null) {
+        try {
+            if (rawData === null) {
+                const dataArea = document.getElementById('data-input-area');
+                const spreadsheetText = dataArea ? dataArea.value.trim() : '';
+                const klikbcaArea = document.getElementById('klikbca-input-area');
+                const klikbcaText = klikbcaArea ? klikbcaArea.value.trim() : '';
+                
+                if (!spreadsheetText && klikbcaText) {
+                    this.handlers.processAndStageKlikBcaData();
+                    return;
+                }
+            }
 
-        contentWrapper.classList.remove('lg:grid-cols-1');
-        contentWrapper.classList.add('lg:grid-cols-3');
-        
-        stagingArea.classList.remove('hidden');
-        
-        this.ui.hideLoader();
+            if (this.state.virtualScrollInstances.staging) {
+                this.state.virtualScrollInstances.staging.destroy();
+                delete this.state.virtualScrollInstances.staging;
+            }
+
+            const vsInstance = VirtualScrollManager.create({
+                containerEl: document.getElementById('staging-table-body-wrapper'),
+                scrollerEl: document.getElementById('staging-scroller'),
+                contentEl: document.getElementById('staging-table-body'),
+                fullData: [],
+                renderRowFunction: this.ui.createStagingTableRow.bind(this.ui),
+                rowHeight: 60,
+            });
+            this.state.virtualScrollInstances.staging = vsInstance;
+            vsInstance.initialize();
+            
+            const dataArea = document.getElementById('data-input-area');
+            const dataToProcess = rawData !== null ? rawData : (dataArea ? dataArea.value : '');
+            
+            if (!dataToProcess || !dataToProcess.trim()) {
+                this.ui.showModal('Info', 'Area input data kosong.');
+                return;
+            }
+            
+            this.ui.showLoader('Menganalisis dan memvalidasi data...');
+            
+            const finalDelimiter = delimiter !== null ? delimiter : this.state.settings.dataParsingSettings.pasteDelimiter;
+            const parsedItems = this.handlers.parseRawDataInput(dataToProcess, finalDelimiter);
+            const { finalStagedData } = await this.handlers.checkForDuplicates(parsedItems);
+            
+            this.state.stagingData = finalStagedData;
+            this.state.activeStagingFilter = 'all';
+            document.querySelectorAll('.staging-filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.statusFilter === 'all'));
+
+            this.handlers.filterAndRenderStagingTable();
+            this.ui.updateStagingStatsAndSubmitBtn();
+            
+            const stagingArea = document.getElementById('staging-area');
+            const contentWrapper = document.getElementById('input-content-wrapper');
+
+            if (contentWrapper) {
+                contentWrapper.classList.remove('lg:grid-cols-1');
+                contentWrapper.classList.add('lg:grid-cols-3');
+            }
+            
+            if (stagingArea) {
+                stagingArea.classList.remove('hidden');
+            }
+        } catch (err) {
+            console.error('Error in processAndStageData:', err);
+            this.ui.showModal('Error', `Gagal memproses data: ${err.message}`);
+        } finally {
+            this.ui.hideLoader();
+        }
     },
 
     async processAndStageKlikBcaData() {

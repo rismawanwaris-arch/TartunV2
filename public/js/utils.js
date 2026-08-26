@@ -224,6 +224,224 @@ const AppUtils = {
         this.ui.showModal('Sukses', `Data berhasil diekspor sebagai ${filename}`);
     },
 
+    parseMerchantBcaWorkbook(workbook) {
+        const allTransactions = [];
+        const sheetNames = workbook.SheetNames || [];
+
+        const bcaOutletToParentMap = {
+            "ID1026574479725": "PARENT PASIRIMPUN ALFA1",
+            "ALFA 1 CELL": "PARENT PASIRIMPUN ALFA1",
+            "ID1026574479691": "PARENT SINJAY2 ALFA 2",
+            "ALFA 2 CELL": "PARENT SINJAY2 ALFA 2",
+            "ID1026574479766": "PARENT SINJAY1 ALFA 3",
+            "ALFA 3 CELL": "PARENT SINJAY1 ALFA 3",
+            "ID1026574479709": "PARENT PARAKANSAAT ALFA4",
+            "ALFA 4 CELL": "PARENT PARAKANSAAT ALFA4",
+            "ID1026574479741": "PARENT NAGROG1 ALFA 5",
+            "ALFA 5 CELL": "PARENT NAGROG1 ALFA 5",
+            "ID1026574478578": "PARENT CINANGKA ALFA 6",
+            "ALFA 6 CELL": "PARENT CINANGKA ALFA 6",
+            "ID1026574478586": "PARENT ALFA7 CINGISED",
+            "ALFA 7 CELL": "PARENT ALFA7 CINGISED",
+            "ID1026574478594": "PARENT ASBER 1",
+            "ASBER 1 CELL": "PARENT ASBER 1",
+            "ID1026574478560": "PARENT ASBER 2",
+            "ASBER 2 CELL": "PARENT ASBER 2",
+            "ID1026575135805": "PARENT BK8 BAKSAR",
+            "BAKSAR 1 CELL": "PARENT BK8 BAKSAR",
+            "ID1026574492439": "PARENT BK9 BAKSAR",
+            "BAKSAR 2 CELL": "PARENT BK9 BAKSAR",
+            "ID1022223873046": "BANDAR KUOTA QR",
+            "BANDAR KUOTA QR": "BANDAR KUOTA QR",
+            "ID1026574478552": "PARENT CIGER",
+            "BK 5 CIGER CELL": "PARENT CIGER",
+            "ID1026575135789": "PARENT PANGARITAN",
+            "BK 6 PANGARITAN CELL": "PARENT PANGARITAN",
+            "ID1026575135821": "PARENT NAGROG2 BK7",
+            "BK 7 NAGROG CELL": "PARENT NAGROG2 BK7",
+            "ID1026574492447": "PARENT PORTAL CJM",
+            "BK CIJAMBE CELL": "PARENT PORTAL CJM",
+            "ID1026575060516": "PARENT CIPADUNG",
+            "BK CIPADUNG CELL": "PARENT CIPADUNG",
+            "ID1026574492462": "PARENT JH2",
+            "BK JH 2 CELL": "PARENT JH2",
+            "ID1026574492470": "PARENT BK SINOM",
+            "BK SINOM CELL": "PARENT BK SINOM",
+            "ID1026570614358": "PARENT BUNISARI",
+            "BUNISARI CELL": "PARENT BUNISARI",
+            "ID1026574492454": "PARENT CICUKANG",
+            "CICUKANG CELL": "PARENT CICUKANG",
+            "ID1026574480152": "CIHAURKUKU CELL",
+            "CIHAURKUKU CELL": "CIHAURKUKU CELL",
+            "ID1026575042621": "PARENT CIKADUT 2",
+            "CIKADUT 2 CELL": "PARENT CIKADUT 2",
+            "ID1026575042639": "PARENT CIKADUT",
+            "CIKADUT CELL": "PARENT CIKADUT",
+            "ID1026575042647": "PARENT CILENGKRANG 1",
+            "CILENGKRANG 1 CELL": "PARENT CILENGKRANG 1",
+            "ID1026575042654": "CILENGKRANG 2 CELL",
+            "CILENGKRANG 2 CELL": "CILENGKRANG 2 CELL",
+            "ID1026575042613": "CILENGKRANG 3 CELL",
+            "CILENGKRANG 3 CELL": "CILENGKRANG 3 CELL",
+            "ID1026575060524": "CILENGKRANG 4 CELL",
+            "CILENGKRANG 4 CELL": "CILENGKRANG 4 CELL",
+            "ID1026575060557": "PARENT CIPADUNG2",
+            "CIPADUNG 2 CELL": "PARENT CIPADUNG2",
+            "ID1026574487421": "PARENT CIPAGALO",
+            "CIPAGALO CELL": "PARENT CIPAGALO",
+            "ID1026575060532": "CIPOREAT CELL",
+            "CIPOREAT CELL": "CIPOREAT CELL",
+            "ID1026575060540": "PARENT CISAR",
+            "CISARANTEN CELL": "PARENT CISAR",
+            "ID1026574486258": "PARENT DM",
+            "DM CELL": "PARENT DM",
+            "ID1026574486274": "PARENT PD1",
+            "PADASUKA 1 CELL": "PARENT PD1",
+            "ID1026574486225": "PARENT PADASUKA 2",
+            "PADASUKA 2 CELL": "PARENT PADASUKA 2",
+            "ID1026574486241": "PARENT PD3",
+            "PADASUKA 3 CELL": "PARENT PD3",
+            "ID1026574486233": "PARENT CJM PC3",
+            "PC 3 CELL": "PARENT CJM PC3",
+            "ID1026574487462": "PARENT OJEG PC4",
+            "PC 4 CELL": "PARENT OJEG PC4",
+            "ID1026574487439": "PARENT CIGENDING PC5",
+            "PC 5 CELL": "PARENT CIGENDING PC5",
+            "ID1026574480095": "PERMATA CELL",
+            "PERMATA CELL": "PERMATA CELL",
+            "ID1022225940488": "POLICE CELL I QR",
+            "POLICE CELL I QR": "POLICE CELL I QR",
+            "ID1026574480137": "RAWA CELL",
+            "RAWA CELL": "RAWA CELL",
+            "ID1026574480145": "PARENT RK",
+            "RK CELL": "PARENT RK",
+            "ID1026574487454": "PARENT SUKAASIH",
+            "SA CELL": "PARENT SUKAASIH",
+            "ID1026574487447": "PARENT SS",
+            "SS CELL": "PARENT SS"
+        };
+
+        const consolidationMap = this.state?.settings?.nameConsolidation || {};
+
+        sheetNames.forEach(sheetName => {
+            const sheet = workbook.Sheets[sheetName];
+            if (!sheet) return;
+
+            const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            if (!rawRows || rawRows.length < 5) return;
+
+            let headerRowIndex = -1;
+            let colMap = {
+                merchantName: 0,
+                merchantId: 1,
+                nmid: 2,
+                amount: 6,
+                date: 8,
+                time: 9,
+                rrn: 12,
+                payerName: 14,
+                paymentType: 17
+            };
+
+            for (let r = 0; r < Math.min(rawRows.length, 10); r++) {
+                const row = rawRows[r];
+                if (Array.isArray(row)) {
+                    const rowText = row.join(' ').toLowerCase();
+                    if (rowText.includes('merchant name') || rowText.includes('original amount') || rowText.includes('transaction date')) {
+                        headerRowIndex = r;
+                        row.forEach((cellVal, colIdx) => {
+                            const str = String(cellVal).trim().toLowerCase();
+                            if (str.includes('merchant name')) colMap.merchantName = colIdx;
+                            else if (str === 'merchant id') colMap.merchantId = colIdx;
+                            else if (str.includes('national merchant id') || str.includes('nmid')) colMap.nmid = colIdx;
+                            else if (str.includes('original amount') || str === 'amount' || str === 'nominal') colMap.amount = colIdx;
+                            else if (str.includes('transaction date') || str === 'date' || str === 'tanggal') colMap.date = colIdx;
+                            else if (str.includes('transaction time') || str === 'time' || str === 'jam') colMap.time = colIdx;
+                            else if (str.includes('reference number') || str.includes('rrn')) colMap.rrn = colIdx;
+                            else if (str.includes('payer name') || str.includes('customer name') || str.includes('nama pembayar')) colMap.payerName = colIdx;
+                            else if (str.includes('payment type') || str.includes('payment method') || str.includes('issuer')) colMap.paymentType = colIdx;
+                        });
+                        break;
+                    }
+                }
+            }
+
+            if (headerRowIndex === -1) return;
+
+            for (let r = headerRowIndex + 1; r < rawRows.length; r++) {
+                const row = rawRows[r];
+                if (!row || !Array.isArray(row) || row.length === 0) continue;
+
+                const merchantName = String(row[colMap.merchantName] || '').trim();
+                if (!merchantName || merchantName.toLowerCase().startsWith('subtotal') || merchantName.toLowerCase().startsWith('total') || merchantName.toLowerCase().startsWith('note:')) {
+                    continue;
+                }
+
+                const nmid = String(row[colMap.nmid] || '').trim();
+                const rawAmount = String(row[colMap.amount] || '0').replace(/,/g, '');
+                const amount = parseFloat(rawAmount) || 0;
+                if (amount <= 0) continue;
+
+                const rawDate = String(row[colMap.date] || '').trim();
+                const rawTime = String(row[colMap.time] || '').replace(/wib/i, '').trim();
+                const rrn = String(row[colMap.rrn] || '').trim();
+                const payerName = String(row[colMap.payerName] || '').trim();
+                const paymentType = String(row[colMap.paymentType] || '').trim();
+
+                let d = new Date();
+                if (rawDate) {
+                    const dateParts = rawDate.split(/[\/\-.]/);
+                    if (dateParts.length === 3) {
+                        const day = parseInt(dateParts[0], 10);
+                        const month = parseInt(dateParts[1], 10) - 1;
+                        let year = parseInt(dateParts[2], 10);
+                        if (year < 100) year += 2000;
+                        d = new Date(year, month, day, 0, 0, 0, 0);
+                    }
+                }
+
+                if (rawTime) {
+                    const timeParts = rawTime.split(/[:.]/);
+                    if (timeParts.length >= 2) {
+                        const hours = parseInt(timeParts[0], 10) || 0;
+                        const minutes = parseInt(timeParts[1], 10) || 0;
+                        const seconds = timeParts.length >= 3 ? parseInt(timeParts[2], 10) || 0 : 0;
+                        d.setHours(hours, minutes, seconds, 0);
+                    }
+                }
+
+                let ketDetail = 'Menerima pembayaran';
+                if (paymentType && payerName) {
+                    ketDetail = `Menerima pembayaran dari ${paymentType} a.n. ${payerName}`;
+                } else if (paymentType) {
+                    ketDetail = `Menerima pembayaran dari ${paymentType}`;
+                } else if (payerName) {
+                    ketDetail = `Menerima pembayaran dari ${payerName}`;
+                } else {
+                    ketDetail = 'Menerima pembayaran QRIS';
+                }
+
+                // Resolusi Nama Outlet ke Nama Parent (Kanonik)
+                let finalOutletName = consolidationMap[nmid.toUpperCase()] ||
+                                      consolidationMap[merchantName.toUpperCase()] ||
+                                      bcaOutletToParentMap[nmid] ||
+                                      bcaOutletToParentMap[merchantName] ||
+                                      merchantName ||
+                                      nmid;
+
+                allTransactions.push({
+                    tanggal: d.toISOString(),
+                    nama: finalOutletName,
+                    jumlah: amount,
+                    keterangan: `TARTUN QR RRN:${rrn} ${ketDetail}`.trim(),
+                    tipe_sheet: 'MANUAL'
+                });
+            }
+        });
+
+        return allTransactions;
+    },
+
     exportToJSON(filename, data) {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8;" });
         this.utils._downloadBlob(filename, blob);

@@ -507,33 +507,20 @@
                          </div>
                     </div>
     
-                    <div class="glass-panel p-5 border-l-4 border-cyan-500">
+                    <div class="glass-panel p-5 border-l-4 border-emerald-500">
                          <div class="flex items-center gap-2">
-                             <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="qr-code" class="w-4 h-4"></i></div>
-                             <h3 class="font-bold text-sm text-text-primary">Opsi 3: Paste Teks Mentah KlikBCA QRIS</h3>
+                             <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i></div>
+                             <h3 class="font-bold text-sm text-text-primary">Opsi 3: Unggah Laporan Excel Merchant BCA</h3>
                          </div>
-                         <p class="text-xs text-text-secondary mt-2">Tempelkan teks mutasi KlikBCA secara langsung. Pilih tanggal transaksi yang sesuai sebelum memproses.</p>
+                         <p class="text-xs text-text-secondary mt-2">Unggah file laporan resmi Merchant BCA (<code class="text-emerald-400 font-mono text-[11px]">ReportMerchantBCA_*.xlsx</code>). Sistem otomatis membaca dan menggabungkan seluruh cabang sekaligus dalam 0,1 detik.</p>
                          <div class="mt-3">
-                             <label for="klikbca-date-input" class="text-xs font-bold text-text-secondary">Tanggal Transaksi KlikBCA</label>
-                             <input type="date" id="klikbca-date-input" name="klikbca-date-input" class="form-input w-full mt-1">
-                         </div>
-                         <div class="relative w-full mt-3">
-                             <label for="klikbca-input-area" class="sr-only">Area Input KlikBCA</label>
-                             <textarea id="klikbca-input-area" name="klikbca-input-area" class="form-textarea w-full h-40 pr-10" placeholder="Paste teks mutasi KlikBCA di sini..."></textarea>
-                             <button class="absolute top-3 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
-                                 <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
-                             </button>
-                         </div>
-                         <button id="process-klikbca-btn" class="btn btn-secondary w-full mt-3 flex items-center justify-center gap-2">
-                             <i data-lucide="play" class="w-4 h-4"></i>
-                             <span>Proses Teks KlikBCA</span>
-                         </button>
-                         <div class="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
-                             <span class="text-[11px] text-text-muted">Tarik otomatis dari qr.klikbca.com:</span>
-                             <a href="tools/klikbca-sync.user.js" target="_blank" class="px-2.5 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-semibold flex items-center gap-1.5 transition-all">
-                                 <i data-lucide="zap" class="w-3.5 h-3.5"></i>
-                                 <span>Pasang Ekstensi Otomatis</span>
-                             </a>
+                            <label for="bca-excel-file-input" class="sr-only">Pilih File Excel BCA</label>
+                            <input type="file" id="bca-excel-file-input" name="bca-excel-file-input" class="hidden" accept=".xlsx,.xls">
+                            <button id="upload-bca-excel-btn" class="btn btn-secondary w-full flex items-center justify-center gap-2 border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300">
+                                <i data-lucide="file-check-2" class="w-5 h-5 text-emerald-400"></i>
+                                <span>Pilih File Excel Merchant BCA (.xlsx)</span>
+                            </button>
+                            <p id="bca-excel-file-name" class="text-xs text-center text-emerald-400 font-medium mt-2 truncate"></p>
                          </div>
                     </div>
     
@@ -1255,13 +1242,13 @@
         </div>
     </template>
     
-    <script src="js/state.js?v=1.3.2"></script>
-    <script src="js/utils.js?v=1.3.2"></script>
-    <script src="js/api.js?v=1.3.2"></script>
-    <script src="js/auth.js?v=1.3.2"></script>
-    <script src="js/virtualScroll.js?v=1.3.2"></script> 
-    <script src="js/handlers.js?v=1.3.2"></script>
-    <script src="js/ui.js?v=1.3.2"></script>
-    <script src="js/main.js?v=1.3.2"></script>
+    <script src="js/state.js?v=1.5.2"></script>
+    <script src="js/utils.js?v=1.5.2"></script>
+    <script src="js/api.js?v=1.5.2"></script>
+    <script src="js/auth.js?v=1.5.2"></script>
+    <script src="js/virtualScroll.js?v=1.5.2"></script> 
+    <script src="js/handlers.js?v=1.5.2"></script>
+    <script src="js/ui.js?v=1.5.2"></script>
+    <script src="js/main.js?v=1.5.2"></script>
 </body>
 </html>
