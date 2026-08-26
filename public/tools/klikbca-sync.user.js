@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tartun V2 - KlikBCA QRIS Multi-Outlet Auto Sync
 // @namespace    https://tartun.app/
-// @version      3.4.0
+// @version      3.5.0
 // @description  Otomasi penarikan mutasi transaksi QRIS dari seluruh 45 outlet di qr.klikbca.com langsung ke sistem Tartun V2
 // @author       Tartun V2 AI
 // @match        https://qr.klikbca.com/*
@@ -25,14 +25,13 @@
 
     let isScanning = false;
     let shouldStopScan = false;
-    let manualDropdownElement = null;
+    let manualTriggerElement = null;
 
-    // 1. PARSER DOM TRANSAKSI (MEMBACA TRANSAKSI YANG TAMPIL DI LAYAR)
+    // 1. PARSER DOM TRANSAKSI (MEMBACA TRANSAKSI YANG SEDANG TAMPIL DI LAYAR)
     function parseTransactionsFromDOM() {
         const items = [];
         const widget = document.getElementById('tartun-sync-widget');
         
-        // Buat clone teks halaman tanpa widget Tartun
         let rawText = '';
         if (widget) {
             const tempDiv = document.body.cloneNode(true);
@@ -92,19 +91,20 @@
         return items;
     }
 
-    // 2. DETEKSI ELEMEN DROPDOWN & MENU OUTLET
+    // 2. DETEKSI & PEMBUKA DROPDOWN MENU
     function findDropdownTrigger() {
-        if (manualDropdownElement && document.body.contains(manualDropdownElement)) {
-            return manualDropdownElement;
+        if (manualTriggerElement && document.body.contains(manualTriggerElement)) {
+            return manualTriggerElement;
         }
 
-        const allElements = Array.from(document.querySelectorAll('div, button, a, span, p'));
+        // Cari elemen yang berada di header atas yang memuat teks NMID
+        const allElements = Array.from(document.querySelectorAll('div, button, a, span, p, header'));
         const candidates = allElements.filter(el => {
             if (el.closest('#tartun-sync-widget')) return false;
             const txt = (el.innerText || '').trim();
             const hasNmid = txt.includes('NMID') || txt.includes('ID102');
-            const isShort = txt.length < 120 && txt.length > 5;
-            const hasChildren = el.children.length >= 1 && el.children.length <= 8;
+            const isShort = txt.length < 100 && txt.length > 5;
+            const hasChildren = el.children.length >= 1 && el.children.length <= 6;
             return hasNmid && isShort && hasChildren;
         });
 
@@ -115,60 +115,84 @@
         return null;
     }
 
-    function getDropdownOptionElements() {
-        // Cari container dropdown popup yang terbuka di layar (modal / menu overlay)
-        const all = Array.from(document.querySelectorAll('*'));
-        
-        const candidateItems = all.filter(el => {
-            // Abaikan apapun yang ada di dalam widget Tartun
-            if (el.closest('#tartun-sync-widget')) return false;
-
-            const txt = (el.innerText || '').trim();
-            if (!txt || txt.length > 80 || txt.length < 4) return false;
-
-            // Harus berisi nama outlet atau ID NMID
-            const isOutletPattern = txt.includes('ID102') || txt.includes('CELL') || txt.includes('QR');
-            const isNotHeader = !txt.includes('TOTAL TRANSAKSI') && !txt.includes('Pakai Merchant');
-            const isVisible = el.offsetHeight > 15 && el.offsetWidth > 40;
-
-            return isOutletPattern && isNotHeader && isVisible;
-        });
-
-        // Filter: Ambil elemen terdalam (leaf element) agar tidak duplikat dengan container pembungkusnya
-        const leafOptions = candidateItems.filter(el => {
-            return !candidateItems.some(other => other !== el && el.contains(other));
-        });
-
-        // Hapus duplikat berdasarkan teks persis
-        const seenTexts = new Set();
-        const uniqueLeafs = [];
-        for (const item of leafOptions) {
-            const cleanTxt = item.innerText.replace(/\s+/g, ' ').trim();
-            if (!seenTexts.has(cleanTxt)) {
-                seenTexts.add(cleanTxt);
-                uniqueLeafs.push(item);
-            }
-        }
-
-        return uniqueLeafs;
-    }
-
-    function clickElement(el) {
+    function triggerFullClick(el) {
         if (!el) return;
         try {
             el.scrollIntoView({ block: 'center', behavior: 'instant' });
-            ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evtType => {
-                el.dispatchEvent(new MouseEvent(evtType, { bubbles: true, cancelable: true, view: window }));
-            });
-            if (typeof el.click === 'function') {
-                el.click();
+            const elements = [el, el.parentElement, ...Array.from(el.children)];
+            for (const target of elements) {
+                if (!target) continue;
+                ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click'].forEach(evtType => {
+                    target.dispatchEvent(new MouseEvent(evtType, { bubbles: true, cancelable: true, view: window }));
+                });
+                if (typeof target.click === 'function') target.click();
             }
         } catch (e) {
-            console.error("Error clicking:", e);
+            console.error("Error trigger click:", e);
         }
     }
 
-    // 3. SMART UI CRAWLER
+    // Deteksi item-item yang muncul HANYA saat dropdown terbuka
+    function getOpenMenuOptionElements() {
+        // Cari container menu / modal / popover yang sedang aktif di DOM
+        const containers = Array.from(document.querySelectorAll('[role="listbox"], [role="menu"], [class*="menu"], [class*="dropdown"], [class*="popover"], [class*="dialog"], [class*="modal"], [class*="drawer"], [class*="sheet"], [class*="bottom-sheet"], div')).filter(c => {
+            if (c.closest('#tartun-sync-widget')) return false;
+            // Harus memiliki z-index tinggi atau terlihat aktif
+            const style = window.getComputedStyle(c);
+            const isVisible = c.offsetHeight > 100 && c.offsetWidth > 150;
+            const isHighZ = parseInt(style.zIndex, 10) > 10 || style.position === 'fixed' || style.position === 'absolute';
+            return isVisible && isHighZ;
+        });
+
+        let foundOptions = [];
+
+        // Cari item outlet di dalam container aktif tersebut
+        for (const container of containers) {
+            const items = Array.from(container.querySelectorAll('*')).filter(el => {
+                if (el.closest('#tartun-sync-widget')) return false;
+                const txt = (el.innerText || '').trim();
+                const isOutlet = (txt.includes('ID102') || txt.includes('CELL') || txt.includes('QR')) && txt.length < 80;
+                const isNotHeader = !txt.includes('TOTAL TRANSAKSI') && !txt.includes('Pakai Merchant');
+                const isVisible = el.offsetHeight > 15 && el.offsetWidth > 40;
+                return isOutlet && isNotHeader && isVisible;
+            });
+
+            // Filter leaf elements
+            const leafs = items.filter(el => !items.some(other => other !== el && el.contains(other)));
+            if (leafs.length > foundOptions.length) {
+                foundOptions = leafs;
+            }
+        }
+
+        // Jika tidak ada container khusus, cari leaf di seluruh body
+        if (foundOptions.length < 3) {
+            const allItems = Array.from(document.querySelectorAll('[role="option"], [class*="item"], [class*="option"], li, div')).filter(el => {
+                if (el.closest('#tartun-sync-widget')) return false;
+                const txt = (el.innerText || '').trim();
+                const isOutlet = (txt.includes('ID102') || txt.includes('CELL') || txt.includes('QR')) && txt.length < 80;
+                const isNotHeader = !txt.includes('TOTAL TRANSAKSI') && !txt.includes('Pakai Merchant');
+                const isVisible = el.offsetHeight > 15 && el.offsetWidth > 40;
+                return isOutlet && isNotHeader && isVisible;
+            });
+            const leafs = allItems.filter(el => !allItems.some(other => other !== el && el.contains(other)));
+            foundOptions = leafs;
+        }
+
+        // Unikkan berdasarkan teks
+        const uniqueItems = [];
+        const seen = new Set();
+        for (const it of foundOptions) {
+            const t = it.innerText.replace(/\s+/g, ' ').trim();
+            if (!seen.has(t) && t.length > 5) {
+                seen.add(t);
+                uniqueItems.push(it);
+            }
+        }
+
+        return uniqueItems;
+    }
+
+    // 3. SMART UI CRAWLER UTAMA
     async function runSmartUiCrawler() {
         if (isScanning) return;
         isScanning = true;
@@ -177,53 +201,59 @@
 
         try {
             logTerminal('========================================', 'info');
-            logTerminal('🚀 MEMULAI PENARIKAN LENGKAP OUTLET', 'highlight');
+            logTerminal('🚀 MEMULAI OTOMASI 45 OUTLET', 'highlight');
             logTerminal('========================================', 'info');
 
             let allCollectedRows = [];
             let totalNominal = 0;
 
-            logTerminal('🔍 Membuka menu dropdown outlet di atas layar...', 'info');
-            const trigger = findDropdownTrigger();
+            // Langkah 1: Deteksi atau Buka Menu Dropdown
+            let options = getOpenMenuOptionElements();
 
-            if (!trigger) {
-                logTerminal('❌ Tombol pilihan outlet tidak terdeteksi otomatis.', 'error');
-                logTerminal('💡 Klik tombol "🎯 Pilih Dropdown Manual" di panel lalu klik kotak nama outlet di atas layar.', 'highlight');
-                alert('Tombol outlet belum terdeteksi.\n\nKlik tombol "🎯 Pilih Dropdown Manual" di panel Tartun, lalu klik kotak nama outlet di bagian atas layar KlikBCA Anda.');
+            if (options.length < 3) {
+                logTerminal('📂 Membuka menu pilihan outlet di atas layar...', 'info');
+                const trigger = findDropdownTrigger();
+                if (trigger) {
+                    triggerFullClick(trigger);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+                options = getOpenMenuOptionElements();
+            }
+
+            // Jika menu masih belum terbuka, minta user mengkliknya
+            if (options.length < 3) {
+                logTerminal('💡 Silakan KLIK kotak nama outlet di atas layar Anda agar menu terbuka...', 'highlight');
+                alert('Silakan KLIK SATU KALI pada kotak nama outlet (di bawah nominal) di atas layar Anda agar menu daftarnya terbuka.');
+                
+                // Tunggu hingga menu terbuka (maks 10 detik)
+                for (let t = 0; t < 20; t++) {
+                    await new Promise(r => setTimeout(r, 500));
+                    options = getOpenMenuOptionElements();
+                    if (options.length >= 3) break;
+                }
+            }
+
+            if (options.length < 2) {
+                logTerminal('❌ Menu daftar outlet belum terbuka di layar.', 'error');
+                alert('Menu daftar outlet belum terbuka.\nPastikan Anda sudah mengklik kotak nama outlet di atas layar.');
                 return;
             }
 
-            // Buka dropdown
-            clickElement(trigger);
-            await new Promise(r => setTimeout(r, 800));
+            // Catat seluruh nama outlet yang terdeteksi
+            const outletNames = options.map(el => el.innerText.replace(/\s+/g, ' ').trim());
+            const totalOutlets = outletNames.length;
 
-            let optionElements = getDropdownOptionElements();
-            logTerminal(`📋 Berhasil mendeteksi ${optionElements.length} outlet unik di menu.`, 'success');
-
-            if (optionElements.length === 0) {
-                logTerminal('⚠️ Menu belum terbuka. Mencoba klik ulang...', 'dim');
-                clickElement(trigger);
-                await new Promise(r => setTimeout(r, 800));
-                optionElements = getDropdownOptionElements();
-            }
-
-            if (optionElements.length === 0) {
-                logTerminal('❌ Menu daftar outlet tidak dapat dibuka.', 'error');
-                alert('Daftar outlet tidak muncul.\nPastikan Anda sudah mengklik tombol dropdown outlet di atas layar.');
-                return;
-            }
-
-            // Catat nama semua outlet yang terdeteksi
-            const outletNames = optionElements.map(el => el.innerText.replace(/\s+/g, ' ').trim());
-            logTerminal(`📋 Daftar Outlet (${optionElements.length}): ${outletNames.slice(0, 3).join(', ')} ... (${optionElements.length} total)`, 'info');
-
-            const totalOutlets = optionElements.length;
+            logTerminal(`📋 Berhasil mendeteksi ${totalOutlets} outlet di menu KlikBCA:`, 'success');
+            logTerminal(`   ${outletNames.slice(0, 4).join(', ')} ... (+${totalOutlets - 4} outlet lainnya)`, 'info');
 
             // Tutup sementara
-            clickElement(trigger);
-            await new Promise(r => setTimeout(r, 400));
+            const closeTrigger = findDropdownTrigger();
+            if (closeTrigger) {
+                triggerFullClick(closeTrigger);
+                await new Promise(r => setTimeout(r, 500));
+            }
 
-            // Loop seluruh outlet
+            // Loop seluruh outlet satu per satu
             for (let i = 0; i < totalOutlets; i++) {
                 if (shouldStopScan) {
                     logTerminal('⏹️ Proses dihentikan oleh pengguna.', 'error');
@@ -232,25 +262,27 @@
 
                 const currentStep = i + 1;
                 const pct = Math.round((currentStep / totalOutlets) * 100);
-                const currentOutletName = outletNames[i] || `Outlet #${currentStep}`;
+                const currentTargetName = outletNames[i];
 
-                updateProgressBar(currentStep, totalOutlets, pct, currentOutletName);
+                updateProgressBar(currentStep, totalOutlets, pct, currentTargetName);
 
-                // Buka kembali dropdown
+                // Buka dropdown
                 const currentTrigger = findDropdownTrigger();
                 if (currentTrigger) {
-                    clickElement(currentTrigger);
+                    triggerFullClick(currentTrigger);
                     await new Promise(r => setTimeout(r, 600));
                 }
 
-                // Cari elemen yang sesuai dengan nama outlet ke-i
-                const currentOptions = getDropdownOptionElements();
-                let targetOption = currentOptions.find(el => el.innerText.replace(/\s+/g, ' ').trim() === currentOutletName) || currentOptions[i];
+                // Cari elemen yang cocok dengan nama outlet ke-i
+                let currentOptions = getOpenMenuOptionElements();
+                let targetEl = currentOptions.find(el => el.innerText.replace(/\s+/g, ' ').trim() === currentTargetName) || currentOptions[i];
 
-                if (targetOption) {
-                    clickElement(targetOption);
-                    // Tunggu KlikBCA me-render mutasi
-                    await new Promise(r => setTimeout(r, 1300));
+                if (targetEl) {
+                    // Klik outlet
+                    triggerFullClick(targetEl);
+
+                    // Tunggu KlikBCA mendekripsi dan menampilkan transaksi
+                    await new Promise(r => setTimeout(r, 1400));
 
                     // Baca transaksi di layar
                     const rows = parseTransactionsFromDOM();
@@ -258,18 +290,18 @@
                         const sum = rows.reduce((s, r) => s + r.jumlah, 0);
                         allCollectedRows.push(...rows);
                         totalNominal += sum;
-                        logTerminal(`[${currentStep}/${totalOutlets}] ✓ ${currentOutletName}: +${rows.length} trx (Rp ${sum.toLocaleString('id-ID')})`, 'success');
+                        logTerminal(`[${currentStep}/${totalOutlets}] ✓ ${currentTargetName}: +${rows.length} trx (Rp ${sum.toLocaleString('id-ID')})`, 'success');
                     } else {
-                        logTerminal(`[${currentStep}/${totalOutlets}] ○ ${currentOutletName}: 0 trx`, 'dim');
+                        logTerminal(`[${currentStep}/${totalOutlets}] ○ ${currentTargetName}: 0 trx`, 'dim');
                     }
 
                     updateLiveStats(allCollectedRows.length, totalNominal);
                 } else {
-                    logTerminal(`[${currentStep}/${totalOutlets}] ⚠️ Gagal menemukan item: ${currentOutletName}`, 'error');
+                    logTerminal(`[${currentStep}/${totalOutlets}] ⚠️ Gagal klik: ${currentTargetName}`, 'error');
                 }
             }
 
-            // Hapus duplikat transaksi
+            // Hapus duplikat
             const uniqueMap = new Map();
             allCollectedRows.forEach(r => {
                 const key = `${r.tanggal}|${r.nama}|${r.jumlah}|${r.keterangan}`;
@@ -296,7 +328,7 @@
 
         } catch (err) {
             logTerminal(`❌ ERROR: ${err.message}`, 'error');
-            console.error("Crawler error:", err);
+            console.error(err);
             alert(`Terjadi kesalahan: ${err.message}`);
         } finally {
             isScanning = false;
@@ -367,10 +399,10 @@
         });
     }
 
-    // 5. FITUR PILIH DROPDOWN MANUAL (INTERACTIVE PICKER)
+    // 5. FITUR PILIH DROPDOWN MANUAL
     function activateManualElementPicker() {
-        logTerminal('🎯 MODE PILIH MANUAL: Klik kotak pilihan nama outlet di bagian atas layar Anda...', 'highlight');
-        alert('Mode Pilih Manual Aktif!\n\nSilakan KLIK SATU KALI pada kotak pilihan nama outlet di bagian atas halaman KlikBCA Anda.');
+        logTerminal('🎯 KLIK KOTAK OUTLET: Klik kotak pilihan nama outlet di bagian atas layar Anda...', 'highlight');
+        alert('Mode Pilih Manual Aktif!\n\nSilakan KLIK PADA KOTAK NAMA OUTLET (di bawah nominal) di bagian atas layar KlikBCA Anda.');
 
         const overlay = document.createElement('div');
         overlay.style.cssText = `
@@ -386,9 +418,9 @@
 
             const clickedEl = document.elementFromPoint(e.clientX, e.clientY);
             if (clickedEl && !clickedEl.closest('#tartun-sync-widget')) {
-                manualDropdownElement = clickedEl;
+                manualTriggerElement = clickedEl;
                 logTerminal(`✅ Elemen Terpilih: "${(clickedEl.innerText || clickedEl.tagName).slice(0, 35)}..."`, 'success');
-                alert(`✅ Berhasil memilih elemen dropdown!\n\nSekarang klik tombol "⚡ TARIK & SINKRONKAN SEMUA 45 OUTLET" untuk memulai.`);
+                alert(`✅ Elemen dropdown berhasil dikunci!\n\nSekarang klik tombol "⚡ TARIK & SINKRONKAN SEMUA 45 OUTLET".`);
             }
             window.removeEventListener('click', onPickerClick, true);
         };
@@ -506,7 +538,7 @@
                         overflow-y: auto;
                         white-space: pre-wrap;
                         line-height: 1.4;
-                    ">Siap sinkronisasi. Klik tombol biru di atas untuk menarik seluruh 45 outlet.</div>
+                    ">Siap sinkronisasi. Buka menu outlet di atas layar atau klik tombol biru di atas.</div>
                 </div>
             </div>
         `;
