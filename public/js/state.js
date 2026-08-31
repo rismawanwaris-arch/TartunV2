@@ -730,6 +730,9 @@ const AppState = {
     },
     // --- AKHIR PENAMBAHAN ---
     analysisColumnFilters: {},
+    batchFilterCodes: [],
+    batchFilterRawText: '',
+    batchFilterRegexPattern: 'RRN:\\s*([^|]+?)\\s*\\|',
     analysisUiState: {
         focusedColumn: null,
         cursorPosition: null

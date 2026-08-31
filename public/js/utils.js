@@ -528,6 +528,40 @@ const AppUtils = {
         return allTransactions;
     },
 
+    // Batch Filter: ekstrak kode-kode (mis. RRN) dari teks mentah yang ditempel user, memakai
+    // pola regex yang bisa dikonfigurasi. Grup tangkap pertama (jika ada) dipakai sebagai hasil,
+    // kalau tidak ada grup tangkap maka seluruh teks yang cocok dipakai. Hasil di-dedupe & di-trim.
+    extractBatchFilterCodes(rawText, patternStr) {
+        const text = String(rawText || '');
+        const pattern = String(patternStr || '').trim();
+        if (!text.trim() || !pattern) return { codes: [], error: null };
+
+        let regex;
+        try {
+            regex = new RegExp(pattern, 'g');
+        } catch (e) {
+            return { codes: [], error: `Pola regex tidak valid: ${e.message}` };
+        }
+
+        const codes = [];
+        const seen = new Set();
+        let match;
+        let guard = 0;
+        while ((match = regex.exec(text)) !== null && guard < 20000) {
+            guard++;
+            const raw = match[1] !== undefined ? match[1] : match[0];
+            const code = String(raw || '').trim();
+            const key = code.toLowerCase();
+            if (code && !seen.has(key)) {
+                seen.add(key);
+                codes.push(code);
+            }
+            if (match.index === regex.lastIndex) regex.lastIndex++;
+        }
+
+        return { codes, error: null };
+    },
+
     exportToJSON(filename, data) {
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json;charset=utf-8;" });
         this.utils._downloadBlob(filename, blob);

@@ -1290,6 +1290,10 @@ const AppHandlers = {
 
         if (auditToggleBtn) auditToggleBtn.onclick = () => this.handlers.handleAnalysisModeChange('audit', !this.state.isAuditMode);
         if (allDataToggleBtn) allDataToggleBtn.onclick = () => this.handlers.handleAnalysisModeChange('allData', !this.state.isAllDataMode);
+
+        const batchFilterBtn = document.getElementById('batch-filter-btn');
+        if (batchFilterBtn) batchFilterBtn.onclick = () => this.handlers.openBatchFilterModal();
+        this.handlers.updateBatchFilterButtonState();
         
         if (deleteBtn) deleteBtn.onclick = this.handlers.handleDeleteSelectedAnalysis;
         if (bulkActionBtn) bulkActionBtn.onclick = this.handlers.handleBulkActionClick;
@@ -1385,6 +1389,108 @@ const AppHandlers = {
         this.dom.filterPanel.style.opacity = this.state.isAllDataMode ? '0.5' : '1';
 
         this.handlers.renderAnalysisView();
+    },
+
+    updateBatchFilterButtonState() {
+        const btn = document.getElementById('batch-filter-btn');
+        const label = document.getElementById('batch-filter-btn-label');
+        if (!btn || !label) return;
+        const count = (this.state.batchFilterCodes || []).length;
+        label.textContent = count > 0 ? `Batch Filter (${count})` : 'Batch Filter';
+        btn.classList.toggle('btn-primary', count > 0);
+        btn.classList.toggle('btn-secondary', count === 0);
+    },
+
+    openBatchFilterModal() {
+        const rawText = this.state.batchFilterRawText || '';
+        const pattern = this.state.batchFilterRegexPattern || 'RRN:\\s*([^|]+?)\\s*\\|';
+
+        const contentHTML = `
+            <div class="space-y-4 text-sm">
+                <p class="text-xs text-text-secondary">Tempel data mentah (mis. notifikasi mutasi berisi RRN), lalu atur pola regex untuk mengambil kode yang akan dipakai memfilter tabel Analisis berdasarkan kolom Keterangan. Filter berlaku sebagai tambahan di atas filter lain yang aktif.</p>
+                <div>
+                    <label for="batch-filter-raw-input" class="font-bold text-text-secondary text-xs">Data Mentah</label>
+                    <textarea id="batch-filter-raw-input" class="form-textarea w-full h-40 mt-1 font-mono text-xs" placeholder="Tempel data di sini..."></textarea>
+                </div>
+                <div>
+                    <label for="batch-filter-regex-input" class="font-bold text-text-secondary text-xs">Pola Regex</label>
+                    <input type="text" id="batch-filter-regex-input" class="form-input w-full mt-1 font-mono text-xs">
+                    <p class="text-xs text-text-muted mt-1">Grup tangkap pertama <code>(...)</code> dipakai sebagai hasil. Default: ambil teks setelah <code>RRN:</code> dan sebelum <code>|</code>.</p>
+                    <p id="batch-filter-regex-error" class="text-xs text-color-danger mt-1 hidden"></p>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center">
+                        <label class="font-bold text-text-secondary text-xs">Preview Hasil Ekstraksi</label>
+                        <span id="batch-filter-preview-count" class="text-xs text-text-muted">0 kode</span>
+                    </div>
+                    <div id="batch-filter-preview-list" class="mt-1 p-2 bg-black/20 rounded max-h-32 overflow-y-auto text-xs font-mono text-text-secondary whitespace-pre-wrap">-</div>
+                </div>
+            </div>
+        `;
+
+        const footerHTML = `
+            <div class="grid grid-cols-3 gap-2 mt-6">
+                <button id="batch-filter-clear-btn" class="btn btn-danger w-full">Hapus Filter</button>
+                <button id="generic-modal-close-btn" class="btn btn-secondary w-full">Batal</button>
+                <button id="batch-filter-apply-btn" class="btn btn-primary w-full">Terapkan Filter</button>
+            </div>
+        `;
+
+        this.ui.showModal('Batch Filter Keterangan', '', contentHTML, { size: 'large', footerHTML });
+
+        const rawInput = document.getElementById('batch-filter-raw-input');
+        const regexInput = document.getElementById('batch-filter-regex-input');
+        const errorEl = document.getElementById('batch-filter-regex-error');
+        const previewList = document.getElementById('batch-filter-preview-list');
+        const previewCount = document.getElementById('batch-filter-preview-count');
+        const applyBtn = document.getElementById('batch-filter-apply-btn');
+
+        rawInput.value = rawText;
+        regexInput.value = pattern;
+
+        const updatePreview = () => {
+            const { codes, error } = this.utils.extractBatchFilterCodes(rawInput.value, regexInput.value);
+            if (error) {
+                errorEl.textContent = error;
+                errorEl.classList.remove('hidden');
+                previewList.textContent = '-';
+                previewCount.textContent = '0 kode';
+                applyBtn.disabled = true;
+                applyBtn.classList.add('opacity-50');
+            } else {
+                errorEl.classList.add('hidden');
+                previewList.textContent = codes.length > 0 ? codes.join('\n') : '(Tidak ada kode ditemukan)';
+                previewCount.textContent = `${codes.length} kode`;
+                applyBtn.disabled = false;
+                applyBtn.classList.remove('opacity-50');
+            }
+            return { codes, error };
+        };
+
+        rawInput.addEventListener('input', updatePreview);
+        regexInput.addEventListener('input', updatePreview);
+        updatePreview();
+
+        document.getElementById('batch-filter-clear-btn').onclick = () => {
+            this.state.batchFilterCodes = [];
+            this.ui.hideModal();
+            this.handlers.updateBatchFilterButtonState();
+            this.ui.renderFilteredContent();
+        };
+
+        applyBtn.onclick = () => {
+            const { codes, error } = updatePreview();
+            if (error) return;
+            this.state.batchFilterRawText = rawInput.value;
+            this.state.batchFilterRegexPattern = regexInput.value;
+            this.state.batchFilterCodes = codes;
+            this.ui.hideModal();
+            this.handlers.updateBatchFilterButtonState();
+            this.ui.renderFilteredContent();
+            if (codes.length === 0) {
+                this.ui.showModal('Info', 'Tidak ada kode yang ditemukan dari data & pola regex tersebut, jadi filter batch belum menyaring apa pun.');
+            }
+        };
     },
 
     renderAnalysisView() {
@@ -1533,6 +1639,16 @@ const AppHandlers = {
                     const filterValue = filters[key].toLowerCase();
                     return rowValue.includes(filterValue);
                 });
+            });
+        }
+
+        const batchFilterCodes = this.state.batchFilterCodes;
+        if (batchFilterCodes && batchFilterCodes.length > 0) {
+            const codesLower = batchFilterCodes.map(c => c.toLowerCase());
+            this.state.analysisSelectedIds.clear();
+            data = data.filter(row => {
+                const ket = String(row.keterangan || '').toLowerCase();
+                return codesLower.some(code => ket.includes(code));
             });
         }
 
