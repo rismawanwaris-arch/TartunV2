@@ -524,6 +524,23 @@
                          </div>
                     </div>
     
+                    <div class="glass-panel p-5 border-l-4 border-cyan-500">
+                         <div class="flex items-center gap-2">
+                             <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="qr-code" class="w-4 h-4"></i></div>
+                             <h3 class="font-bold text-sm text-text-primary">Opsi 4: Unggah Laporan Settlement QRIS (CSV)</h3>
+                         </div>
+                         <p class="text-xs text-text-secondary mt-2">Unggah file laporan settlement dari payment gateway (kolom: Outlet Code, Outlet Name, Amount (Rp), Payment Method, Transaction Date, dst). Nama outlet otomatis dipetakan lewat NMID di Pengaturan, dan hanya transaksi berstatus <code class="text-cyan-400 font-mono text-[11px]">success</code> yang diproses.</p>
+                         <div class="mt-3">
+                            <label for="qris-settlement-csv-input" class="sr-only">Pilih File Settlement QRIS</label>
+                            <input type="file" id="qris-settlement-csv-input" name="qris-settlement-csv-input" class="hidden" accept=".csv">
+                            <button id="upload-qris-settlement-btn" class="btn btn-secondary w-full flex items-center justify-center gap-2 border-cyan-500/30 hover:border-cyan-500/60 text-cyan-300">
+                                <i data-lucide="qr-code" class="w-5 h-5 text-cyan-400"></i>
+                                <span>Pilih File Settlement QRIS (.csv)</span>
+                            </button>
+                            <p id="qris-settlement-file-name" class="text-xs text-center text-cyan-400 font-medium mt-2 truncate"></p>
+                         </div>
+                    </div>
+    
                     <button id="process-data-btn" class="btn btn-primary w-full text-base py-3">
                         <i data-lucide="play-circle" class="w-5 h-5"></i>
                         Proses & Validasi Data
@@ -1242,13 +1259,13 @@
         </div>
     </template>
     
-    <script src="js/state.js?v=1.5.2"></script>
-    <script src="js/utils.js?v=1.5.2"></script>
-    <script src="js/api.js?v=1.5.2"></script>
-    <script src="js/auth.js?v=1.5.2"></script>
-    <script src="js/virtualScroll.js?v=1.5.2"></script> 
-    <script src="js/handlers.js?v=1.5.2"></script>
-    <script src="js/ui.js?v=1.5.2"></script>
-    <script src="js/main.js?v=1.5.2"></script>
+    <script src="js/state.js?v=1.5.3"></script>
+    <script src="js/utils.js?v=1.5.3"></script>
+    <script src="js/api.js?v=1.5.3"></script>
+    <script src="js/auth.js?v=1.5.3"></script>
+    <script src="js/virtualScroll.js?v=1.5.3"></script> 
+    <script src="js/handlers.js?v=1.5.3"></script>
+    <script src="js/ui.js?v=1.5.3"></script>
+    <script src="js/main.js?v=1.5.3"></script>
 </body>
 </html>

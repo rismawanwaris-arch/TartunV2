@@ -59,7 +59,7 @@ const AppAuth = {
                     id: user.id,
                     email: user.email,
                     role: profile.role,
-                    dashboardConfig: profile.dashboard_config ? JSON.parse(profile.dashboard_config) : null
+                    dashboardConfig: (typeof profile.dashboard_config === 'string') ? JSON.parse(profile.dashboard_config) : (profile.dashboard_config || null)
                 };
                 this.state.filterPresets = Array.isArray(profile.filter_presets) ? profile.filter_presets : 
                                            (typeof profile.filter_presets === 'string' ? JSON.parse(profile.filter_presets) : []);

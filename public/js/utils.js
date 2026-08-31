@@ -271,26 +271,26 @@ const AppUtils = {
             "BUNISARI CELL": "PARENT BUNISARI",
             "ID1026574492454": "PARENT CICUKANG",
             "CICUKANG CELL": "PARENT CICUKANG",
-            "ID1026574480152": "CIHAURKUKU CELL",
-            "CIHAURKUKU CELL": "CIHAURKUKU CELL",
+            "ID1026574480152": "PARENT CIHAURKUKU",
+            "CIHAURKUKU CELL": "PARENT CIHAURKUKU",
             "ID1026575042621": "PARENT CIKADUT 2",
             "CIKADUT 2 CELL": "PARENT CIKADUT 2",
             "ID1026575042639": "PARENT CIKADUT",
             "CIKADUT CELL": "PARENT CIKADUT",
             "ID1026575042647": "PARENT CILENGKRANG 1",
             "CILENGKRANG 1 CELL": "PARENT CILENGKRANG 1",
-            "ID1026575042654": "CILENGKRANG 2 CELL",
-            "CILENGKRANG 2 CELL": "CILENGKRANG 2 CELL",
-            "ID1026575042613": "CILENGKRANG 3 CELL",
-            "CILENGKRANG 3 CELL": "CILENGKRANG 3 CELL",
-            "ID1026575060524": "CILENGKRANG 4 CELL",
-            "CILENGKRANG 4 CELL": "CILENGKRANG 4 CELL",
+            "ID1026575042654": "PARENT CILENGKRANG 2",
+            "CILENGKRANG 2 CELL": "PARENT CILENGKRANG 2",
+            "ID1026575042613": "PARENT CILENGKRANG 3",
+            "CILENGKRANG 3 CELL": "PARENT CILENGKRANG 3",
+            "ID1026575060524": "PARENT CILENGKRANG 4",
+            "CILENGKRANG 4 CELL": "PARENT CILENGKRANG 4",
             "ID1026575060557": "PARENT CIPADUNG2",
             "CIPADUNG 2 CELL": "PARENT CIPADUNG2",
             "ID1026574487421": "PARENT CIPAGALO",
             "CIPAGALO CELL": "PARENT CIPAGALO",
-            "ID1026575060532": "CIPOREAT CELL",
-            "CIPOREAT CELL": "CIPOREAT CELL",
+            "ID1026575060532": "PARENT CIPOREAT",
+            "CIPOREAT CELL": "PARENT CIPOREAT",
             "ID1026575060540": "PARENT CISAR",
             "CISARANTEN CELL": "PARENT CISAR",
             "ID1026574486258": "PARENT DM",
@@ -307,12 +307,12 @@ const AppUtils = {
             "PC 4 CELL": "PARENT OJEG PC4",
             "ID1026574487439": "PARENT CIGENDING PC5",
             "PC 5 CELL": "PARENT CIGENDING PC5",
-            "ID1026574480095": "PERMATA CELL",
-            "PERMATA CELL": "PERMATA CELL",
-            "ID1022225940488": "POLICE CELL I QR",
-            "POLICE CELL I QR": "POLICE CELL I QR",
-            "ID1026574480137": "RAWA CELL",
-            "RAWA CELL": "RAWA CELL",
+            "ID1026574480095": "PARENT PERMATA",
+            "PERMATA CELL": "PARENT PERMATA",
+            "ID1022225940488": "BANDAR KUOTA QR",
+            "POLICE CELL I QR": "BANDAR KUOTA QR",
+            "ID1026574480137": "PARENT RAWA 2",
+            "RAWA CELL": "PARENT RAWA 2",
             "ID1026574480145": "PARENT RK",
             "RK CELL": "PARENT RK",
             "ID1026574487454": "PARENT SUKAASIH",
@@ -438,6 +438,92 @@ const AppUtils = {
                 });
             }
         });
+
+        return allTransactions;
+    },
+
+    parseQrisSettlementCsv(csvText) {
+        // Opsi 4: Laporan settlement QRIS dari payment gateway (kolom generik: Outlet Code, Outlet Name,
+        // Amount (Rp), Payment Method, Customer, Transaction Date, Status, dll). Hanya baris berstatus
+        // "success" yang diproses. Nama outlet dipetakan lewat nmidMapping (Outlet Code = NMID), lalu
+        // dikonsolidasikan ke nama Parent lewat nameConsolidation, persis alur Opsi 3 (Excel BCA).
+        function parseCsvRows(text) {
+            if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+            const rows = [];
+            let row = [], field = '', inQuotes = false;
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (inQuotes) {
+                    if (c === '"') {
+                        if (text[i + 1] === '"') { field += '"'; i++; }
+                        else inQuotes = false;
+                    } else field += c;
+                } else if (c === '"') inQuotes = true;
+                else if (c === ',') { row.push(field); field = ''; }
+                else if (c === '\r') { /* skip */ }
+                else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
+                else field += c;
+            }
+            if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+            return rows.filter(r => !(r.length === 1 && r[0] === ''));
+        }
+
+        const rows = parseCsvRows(csvText);
+        if (rows.length < 2) return [];
+        const header = rows[0].map(h => h.trim());
+        const colIdx = name => header.findIndex(h => h.toLowerCase() === name.toLowerCase());
+
+        const idxOutletCode = colIdx('Outlet Code');
+        const idxOutletName = colIdx('Outlet Name');
+        const idxReference = colIdx('Reference');
+        const idxTrxId = colIdx('Transaction ID');
+        const idxAmount = colIdx('Amount (Rp)');
+        const idxStatus = colIdx('Status');
+        const idxPaymentMethod = colIdx('Payment Method');
+        const idxCustomer = colIdx('Customer');
+        const idxTrxDate = colIdx('Transaction Date');
+
+        const nmidMapping = this.state?.settings?.nmidMapping || {};
+        const nameConsolidation = this.state?.settings?.nameConsolidation || {};
+
+        const allTransactions = [];
+        for (let r = 1; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row || row.length < 2) continue;
+
+            const status = (idxStatus > -1 ? row[idxStatus] : '').trim().toLowerCase();
+            if (status !== 'success') continue;
+
+            const amount = parseFloat((idxAmount > -1 ? row[idxAmount] : '0').replace(/,/g, ''));
+            if (!amount || amount <= 0) continue;
+
+            const nmid = (idxOutletCode > -1 ? row[idxOutletCode] : '').trim();
+            const merchantName = (idxOutletName > -1 ? row[idxOutletName] : '').trim();
+            const rawDate = (idxTrxDate > -1 ? row[idxTrxDate] : '').trim();
+            const reference = (idxReference > -1 ? row[idxReference] : '') || (idxTrxId > -1 ? row[idxTrxId] : '');
+            const paymentMethod = (idxPaymentMethod > -1 ? row[idxPaymentMethod] : '').trim();
+            const customer = (idxCustomer > -1 ? row[idxCustomer] : '').trim();
+
+            const ts = Date.parse(rawDate);
+            if (isNaN(ts)) continue;
+
+            const finalName = nmidMapping[nmid] || merchantName || nmid;
+            const consolidatedName = nameConsolidation[nmid.toUpperCase()] ||
+                                      nameConsolidation[finalName.toUpperCase()] ||
+                                      finalName;
+
+            const ketDetail = paymentMethod
+                ? `Menerima pembayaran dari ${paymentMethod}${customer ? ' a.n. ' + customer : ''}`
+                : 'Menerima pembayaran QRIS';
+
+            allTransactions.push({
+                tanggal: new Date(ts).toISOString(),
+                nama: consolidatedName,
+                jumlah: amount,
+                keterangan: `TARTUN QR REF:${reference} ${ketDetail}`.trim(),
+                tipe_sheet: 'MANUAL'
+            });
+        }
 
         return allTransactions;
     },

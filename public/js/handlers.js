@@ -1972,6 +1972,13 @@ const AppHandlers = {
             uploadBcaBtn.onclick = () => bcaInput.click();
             bcaInput.onchange = this.handlers.handleBcaExcelFileUpload;
         }
+
+        const uploadQrisBtn = document.getElementById('upload-qris-settlement-btn');
+        const qrisInput = document.getElementById('qris-settlement-csv-input');
+        if (uploadQrisBtn && qrisInput) {
+            uploadQrisBtn.onclick = () => qrisInput.click();
+            qrisInput.onchange = this.handlers.handleQrisSettlementCsvUpload;
+        }
         
         document.getElementById('submit-valid-data-btn').onclick = this.handlers.submitStagedData;
         const deleteAllErrorsBtn = document.getElementById('delete-all-errors-btn');
@@ -2054,6 +2061,11 @@ const AppHandlers = {
         const bcaExcelName = document.getElementById('bca-excel-file-name');
         if (bcaExcelName) bcaExcelName.textContent = '';
 
+        const qrisSettlementInput = document.getElementById('qris-settlement-csv-input');
+        if (qrisSettlementInput) qrisSettlementInput.value = '';
+        const qrisSettlementName = document.getElementById('qris-settlement-file-name');
+        if (qrisSettlementName) qrisSettlementName.textContent = '';
+
         this.state.stagingData = [];
         this.state.activeStagingFilter = 'all';
         if (this.state.virtualScrollInstances.staging) {
@@ -2105,6 +2117,34 @@ const AppHandlers = {
             }
         };
         reader.readAsArrayBuffer(file);
+    },
+
+    handleQrisSettlementCsvUpload(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const nameLabel = document.getElementById('qris-settlement-file-name');
+        if (nameLabel) nameLabel.textContent = file.name;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                this.ui.showLoader('Membaca laporan settlement QRIS...');
+                const csvText = e.target.result;
+                const qrisTrx = this.utils.parseQrisSettlementCsv(csvText);
+                if (!qrisTrx || qrisTrx.length === 0) {
+                    this.ui.showModal('Info', 'Tidak ditemukan transaksi berstatus success di dalam file ini.');
+                    return;
+                }
+
+                await this.handlers.stageParsedTransactions(qrisTrx, `Laporan Settlement QRIS (${qrisTrx.length} transaksi)`);
+            } catch (err) {
+                this.ui.showModal('Error', `Gagal memproses file settlement QRIS: ${err.message}`);
+            } finally {
+                this.ui.hideLoader();
+            }
+        };
+        reader.readAsText(file);
     },
 
     async stageParsedTransactions(rawItems, sourceName = 'Data Terimport') {

@@ -12,6 +12,9 @@ data/*.db-journal
 uploads/avatars/*
 !uploads/avatars/.gitkeep
 
+# Data import mentah (berisi data transaksi/pelanggan, jangan di-commit)
+imports/
+
 # Environment & OS
 .env
 .env.local
