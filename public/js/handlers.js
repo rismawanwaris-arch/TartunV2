@@ -1,4 +1,7 @@
 const AppHandlers = {
+    // SVG inline agar tidak perlu lucide.createIcons() tiap frame scroll tabel virtual.
+    _EYE_ICON_SVG: '<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>',
+
     _throttle(func, limit) {
         let inThrottle;
         return function() {
@@ -299,37 +302,56 @@ const AppHandlers = {
         this.handlers.updateActionButtonsState();
     },
 
+    // Indeks pencarian dibangun malas (lazy): saat load awal kita TIDAK
+    // membayar biaya iterasi 38k baris kecuali pengguna benar-benar mencari.
     buildIndexes() {
-        this.ui.setStatus('Mengindeks data untuk pencarian cepat...');
-        const searchableText = new Map();
-        
-        for (const row of this.state.allData) {
-            const searchTarget = [
-                String(row.nama || ''),
-                String(row.keterangan || ''),
-                String(row.jumlah || '')
-            ].join(' ').toLowerCase();
-            searchableText.set(row.id, searchTarget);
-        }
-
-        this.state.dataIndexes = { searchableText };
+        this.state.dataIndexes = { searchableText: null };
         this.state.filterCache.clear();
-        this.ui.setStatus(`Data diindeks. Total: ${this.state.allData.length} baris.`);
+        this.ui.setStatus(`Data siap. Total: ${this.state.allData.length} baris.`);
     },
 
-    async fetchInitialData() {
+    ensureSearchIndex() {
+        if (this.state.dataIndexes && this.state.dataIndexes.searchableText) {
+            return this.state.dataIndexes.searchableText;
+        }
+        this.ui.setStatus('Mengindeks data untuk pencarian cepat...');
+        const searchableText = new Map();
+        for (const row of this.state.allData) {
+            searchableText.set(
+                row.id,
+                `${row.nama || ''} ${row.keterangan || ''} ${row.jumlah || ''}`.toLowerCase()
+            );
+        }
+        this.state.dataIndexes = { searchableText };
+        this.ui.setStatus(`Data diindeks. Total: ${this.state.allData.length} baris.`);
+        return searchableText;
+    },
+
+    async fetchInitialData(prefetch = null) {
         this.ui.setStatus('Mengambil data awal...');
         try {
-            const initialData = await this.api.fetchAllData();
+            // `prefetch` boleh berupa Promise yang sudah dimulai lebih awal
+            // (mis. paralel dengan pemuatan settings) agar unduhan besar overlap.
+            const initialData = prefetch ? await prefetch : await this.api.fetchAllData();
             const {
                 nameConsolidation = {}
             } = this.state.settings;
+            // Satu pass: normalisasi nama + pra-parse tanggal ke timestamp (row._ts).
+            // Menghindari ribuan alokasi `new Date()` di setiap filter/render berikutnya.
+            const nameCache = new Map();
             this.state.allData = initialData.map(row => {
-                const normalizedName = this.utils.normalizeName(String(row.nama || ''));
-                row.nama = nameConsolidation[normalizedName.toUpperCase()] || normalizedName;
+                const rawName = String(row.nama || '');
+                let finalName = nameCache.get(rawName);
+                if (finalName === undefined) {
+                    const normalizedName = this.utils.normalizeName(rawName);
+                    finalName = nameConsolidation[normalizedName.toUpperCase()] || normalizedName;
+                    nameCache.set(rawName, finalName);
+                }
+                row.nama = finalName;
+                row._ts = row.tanggal ? Date.parse(row.tanggal) : 0;
                 return row;
             });
-            
+
             this.handlers.buildIndexes();
 
         } catch (error) {
@@ -353,11 +375,13 @@ const AppHandlers = {
         let dataChanged = false;
 
         if (eventType === 'INSERT') {
+            if (newRecord) newRecord._ts = newRecord.tanggal ? Date.parse(newRecord.tanggal) : 0;
             this.state.allData.unshift(newRecord);
             dataChanged = true;
         } else if (eventType === 'UPDATE') {
             const i = this.state.allData.findIndex(item => item.id === newRecord.id);
             if (i > -1) {
+                if (newRecord) newRecord._ts = newRecord.tanggal ? Date.parse(newRecord.tanggal) : 0;
                 this.state.allData[i] = newRecord;
                 dataChanged = true;
             }
@@ -805,21 +829,23 @@ const AppHandlers = {
             return this.state.filterCache.get(cacheKey);
         }
 
-        const { searchableText } = this.state.dataIndexes;
         const searchWords = searchTerm.split(' ').filter(w => w);
+        const searchableText = searchWords.length > 0 ? this.handlers.ensureSearchIndex() : null;
         const startDate = startDateVal ? new Date(startDateVal) : null;
         if (startDate) startDate.setHours(0, 0, 0, 0);
         const endDate = endDateVal ? new Date(endDateVal) : null;
         if (endDate) endDate.setHours(23, 59, 59, 999);
-        
+        const startTs = startDate ? startDate.getTime() : null;
+        const endTs = endDate ? endDate.getTime() : null;
+
         const filteredResult = [];
         for (const row of this.state.allData) {
             if (typeFilter !== 'all' && row.tipe_sheet !== typeFilter) {
                 continue;
             }
 
-            const rowDate = new Date(row.tanggal);
-            if ((startDate && rowDate < startDate) || (endDate && rowDate > endDate)) {
+            const rowTs = row._ts;
+            if ((startTs !== null && rowTs < startTs) || (endTs !== null && rowTs > endTs)) {
                 continue;
             }
 
@@ -829,13 +855,17 @@ const AppHandlers = {
                     continue;
                 }
             }
-            
+
             filteredResult.push(row);
         }
         
         this.state.analysisSelectedIds.clear();
+        // Batasi cache agar tidak menahan banyak array besar di memori.
+        if (this.state.filterCache.size >= 24) {
+            this.state.filterCache.clear();
+        }
         this.state.filterCache.set(cacheKey, filteredResult);
-        
+
         return filteredResult;
     },
 
@@ -846,13 +876,14 @@ const AppHandlers = {
         if (startDate) startDate.setHours(0, 0, 0, 0);
         const endDate = this.dom.filterEndDate.value ? new Date(this.dom.filterEndDate.value) : null;
         if (endDate) endDate.setHours(23, 59, 59, 999);
-        
+        const startTs = startDate ? startDate.getTime() : null;
+        const endTs = endDate ? endDate.getTime() : null;
+
         this.state.analysisSelectedIds.clear();
 
         return baseData.filter(row => {
-            const rowDate = new Date(row.tanggal);
-            const dateMatch = (!startDate || rowDate >= startDate) && (!endDate || rowDate <= endDate);
-            return dateMatch;
+            const rowTs = row._ts;
+            return (startTs === null || rowTs >= startTs) && (endTs === null || rowTs <= endTs);
         });
     },
 
@@ -1267,10 +1298,8 @@ const AppHandlers = {
             fullData: [],
             renderRowFunction: this.handlers.createAnalysisTableRow.bind(this),
             rowHeight: 40,
-            // PERUBAHAN: Menghapus onRenderCallback untuk menerapkan event delegation
-            onRenderCallback: () => {
-                lucide.createIcons();
-            }
+            // Ikon sudah inline SVG di createAnalysisTableRow -> tidak perlu
+            // lucide.createIcons() pada tiap render/scroll.
         });
         this.state.virtualScrollInstances.analysis = vsInstance;
         vsInstance.initialize();
@@ -1610,14 +1639,14 @@ const AppHandlers = {
         return `
             <div class="h-[40px] analysis-grid-layout border-b border-border-color/50 hover:bg-color-primary/10">
                 <div class="p-2 text-center"><input type="checkbox" id="select-row-${row.id}" name="row-selection" class="form-input analysis-row-checkbox" data-row-id="${row.id}" ${isChecked ? 'checked' : ''}></div>
-                <div class="p-2 truncate">${new Date(row.tanggal).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short'})}</div>
+                <div class="p-2 truncate">${new Date(row._ts).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short'})}</div>
                 <div class="p-2 truncate">${row.nama}</div>
                 <div class="p-2 text-right">${this.utils.formatCurrency(row.jumlah)}</div>
                 <div class="p-2 truncate" title="${row.keterangan}">${row.keterangan}</div>
                 <div class="p-2 truncate">${row.tipe_sheet}</div>
                 <div class="p-2 text-center">
                     <button class="btn btn-secondary p-1 action-btn-detail" data-row-id="${row.id}" title="Lihat/Edit Detail">
-                        <i data-lucide="eye" class="w-4 h-4"></i>
+                        ${AppHandlers._EYE_ICON_SVG}
                     </button>
                 </div>
             </div>
@@ -1657,8 +1686,8 @@ const AppHandlers = {
             let valB = b[column];
 
             if (column === 'tanggal') {
-                valA = new Date(valA);
-                valB = new Date(valB);
+                valA = a._ts;
+                valB = b._ts;
             } else if (typeof valA === 'string') {
                 valA = valA.toLowerCase();
                 valB = valB.toLowerCase();
@@ -2216,6 +2245,7 @@ const AppHandlers = {
         reader.onload = async (e) => {
             try {
                 this.ui.showLoader('Membaca & menggabungkan seluruh cabang Excel BCA...');
+                await ensureXLSX();
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 
@@ -3870,7 +3900,7 @@ const AppHandlers = {
         let minTs = Infinity;
         let maxTs = -Infinity;
         for (const d of this.state.allData) {
-            const t = new Date(d.tanggal).getTime();
+            const t = d._ts;
             if (t < minTs) minTs = t;
             if (t > maxTs) maxTs = t;
         }

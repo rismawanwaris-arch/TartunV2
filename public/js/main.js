@@ -5,9 +5,7 @@ window.onerror = function(message, source, lineno, colno, error) {
 
 document.addEventListener('DOMContentLoaded', () => {
 
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    document.head.appendChild(script);
+    // html2canvas dimuat lazy saat laporan grafik diekspor (lihat ensureHtml2canvas).
 
     Chart.register(ChartDataLabels);
 
@@ -96,8 +94,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearInterval(this.state.sessionCheckInterval);
             }
 
-            // Mulai pemeriksa sesi baru yang berjalan setiap 30 detik
+            // Pemeriksa sesi berjalan tiap 90 detik, dan dilewati saat tab tidak aktif
+            // untuk menghemat request /auth/me yang tidak perlu.
             this.state.sessionCheckInterval = setInterval(async () => {
+                if (document.hidden) return;
+
                 const user = this.state.currentUser;
                 const localSessionId = localStorage.getItem('fkof_session_id');
 
@@ -125,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         // Koneksi mungkin terputus, interval akan mencoba lagi nanti.
                     }
                 }
-            }, 30000); // Interval pemeriksaan: 30 detik
+            }, 90000); // Interval pemeriksaan: 90 detik
         },
         // --- AKHIR FUNGSI BARU ---
 

@@ -73,9 +73,11 @@ const AppAuth = {
             const isLoggingIn = user && (!this.state.currentUser || this.state.currentUser.id !== user.id);
 
             if (!this.state.isInitialAuthCheckComplete) {
+                // Mulai unduh data transaksi paralel dengan pemuatan settings.
+                const dataPrefetch = this.api.fetchAllData();
                 await this.settings.load();
                 this.handlers.setDefaultDateFilters();
-                await this.handlers.fetchInitialData();
+                await this.handlers.fetchInitialData(dataPrefetch);
                 this.handlers.setupDataListeners();
                 await this.handlers.listenToLogChanges();
             } else {

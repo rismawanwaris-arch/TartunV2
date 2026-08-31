@@ -1,3 +1,68 @@
+// Formatter mata uang di-reuse; membuat Intl.NumberFormat baru pada tiap
+// panggilan sangat mahal saat merender ribuan sel tabel.
+const _IDR_FORMATTER = new Intl.NumberFormat('id-ID', {
+    style: 'currency',
+    currency: 'IDR',
+    minimumFractionDigits: 0
+});
+
+// Cache aturan admin ter-kompilasi + memoisasi hasil biaya, di-key per objek
+// `settings`. `settings.load()` selalu membuat objek baru sehingga cache lama
+// otomatis gugur (WeakMap) tanpa perlu invalidasi manual.
+const _feeBundleCache = new WeakMap();
+function _getFeeBundle(settings) {
+    let bundle = _feeBundleCache.get(settings);
+    if (bundle) return bundle;
+
+    const rules = Array.isArray(settings.adminRules) ? settings.adminRules : [];
+    const compiled = rules
+        .map(rule => ({
+            keywords: String(rule.keyword || '').split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
+            amount: Number(rule.amount) || 0,
+            feeType: rule.feeType,
+            feeValue: Number(rule.feeValue) || 0,
+            flatFee: rule.feeValue !== undefined ? Number(rule.feeValue) || 0 : (Number(rule.fee) || 0)
+        }))
+        .sort((a, b) => a.amount - b.amount);
+
+    bundle = { compiled, memo: new Map() };
+    _feeBundleCache.set(settings, bundle);
+    return bundle;
+}
+
+// Lazy-load library eksternal berat (xlsx ~900KB, jspdf ~350KB, html2canvas ~200KB)
+// hanya saat fitur import/export benar-benar dipakai — bukan di setiap page load.
+const _scriptPromises = {};
+function _loadScriptOnce(url) {
+    if (!_scriptPromises[url]) {
+        _scriptPromises[url] = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = url;
+            s.async = true;
+            s.onload = () => resolve();
+            s.onerror = () => { delete _scriptPromises[url]; reject(new Error('Gagal memuat script: ' + url)); };
+            document.head.appendChild(s);
+        });
+    }
+    return _scriptPromises[url];
+}
+const _CDN_LIBS = {
+    xlsx: 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+    jspdf: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',
+    jspdfAutotable: 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js',
+    html2canvas: 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'
+};
+async function ensureXLSX() {
+    if (typeof XLSX === 'undefined') await _loadScriptOnce(_CDN_LIBS.xlsx);
+}
+async function ensureJsPDF() {
+    if (typeof window.jspdf === 'undefined') await _loadScriptOnce(_CDN_LIBS.jspdf);
+    await _loadScriptOnce(_CDN_LIBS.jspdfAutotable);
+}
+async function ensureHtml2canvas() {
+    if (typeof html2canvas === 'undefined') await _loadScriptOnce(_CDN_LIBS.html2canvas);
+}
+
 const AppUtils = {
     generateUUID() {
         if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -12,11 +77,7 @@ const AppUtils = {
     },
 
     formatCurrency(value) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(value || 0);
+        return _IDR_FORMATTER.format(value || 0);
     },
 
     formatDateForInput(date) {
@@ -108,26 +169,31 @@ const AppUtils = {
     },
 
     calculateAdminFee(row, settings) {
-        const { adminRules } = settings;
+        const bundle = _getFeeBundle(settings);
         const value = parseFloat(row.jumlah) || 0;
+        const absValue = Math.abs(value);
         const keterangan = String(row.keterangan || '').toUpperCase();
-        let feeFromRules = 0;
+        const isTiket = row.tipe_sheet === 'TIKET';
 
-        const matchingRules = adminRules
-            .filter(rule => {
-                const keywords = rule.keyword.split(',').map(k => k.trim().toUpperCase());
-                return keywords.some(kw => keterangan.includes(kw));
-            })
-            .sort((a, b) => a.amount - b.amount);
+        // Memoisasi: banyak baris berbagi (keterangan, jumlah, tipe) yang sama.
+        const memoKey = `${isTiket ? 'T' : 'M'}|${value}|${keterangan}`;
+        const cached = bundle.memo.get(memoKey);
+        if (cached !== undefined) return cached;
+
+        let feeFromRules = 0;
+        const matchingRules = [];
+        for (const rule of bundle.compiled) {
+            if (rule.keywords.some(kw => keterangan.includes(kw))) {
+                matchingRules.push(rule);
+            }
+        }
 
         let ruleApplied = false;
         for (const rule of matchingRules) {
-            if (Math.abs(value) <= rule.amount) {
-                if (rule.feeType === 'percentage') {
-                    feeFromRules = Math.round(Math.abs(value) * (rule.feeValue / 100));
-                } else {
-                    feeFromRules = rule.feeValue !== undefined ? rule.feeValue : rule.fee;
-                }
+            if (absValue <= rule.amount) {
+                feeFromRules = rule.feeType === 'percentage'
+                    ? Math.round(absValue * (rule.feeValue / 100))
+                    : rule.flatFee;
                 ruleApplied = true;
                 break;
             }
@@ -135,20 +201,18 @@ const AppUtils = {
 
         if (!ruleApplied && matchingRules.length > 0) {
             const lastRule = matchingRules[matchingRules.length - 1];
-            if (lastRule.feeType === 'percentage') {
-                feeFromRules = Math.round(Math.abs(value) * (lastRule.feeValue / 100));
-            } else {
-                feeFromRules = lastRule.feeValue !== undefined ? lastRule.feeValue : lastRule.fee;
-            }
+            feeFromRules = lastRule.feeType === 'percentage'
+                ? Math.round(absValue * (lastRule.feeValue / 100))
+                : lastRule.flatFee;
         }
 
         let totalFee = feeFromRules;
-
-        if (row.tipe_sheet === 'TIKET') {
-            const feeFromTicketNominal = parseInt(String(Math.abs(value)).split('.')[0].slice(-3)) || 0;
+        if (isTiket) {
+            const feeFromTicketNominal = parseInt(String(absValue).split('.')[0].slice(-3)) || 0;
             totalFee += feeFromTicketNominal;
         }
 
+        bundle.memo.set(memoKey, totalFee);
         return totalFee;
     },
 
@@ -198,7 +262,9 @@ const AppUtils = {
         this.ui.showModal('Sukses', `Data berhasil diekspor sebagai ${filename}`);
     },
 
-    exportToXLSX(filename, headers, data, footerData = null) {
+    async exportToXLSX(filename, headers, data, footerData = null) {
+        try { await ensureXLSX(); }
+        catch (e) { this.ui.showModal('Error', 'Gagal memuat library Excel. Periksa koneksi internet.'); return; }
         const dataForSheet = data.map(row => {
             const newRow = {};
             headers.forEach(col => {
@@ -568,7 +634,9 @@ const AppUtils = {
         this.ui.showModal('Sukses', `Data berhasil diekspor sebagai ${filename}`);
     },
 
-    exportToPDF(title, headers, data, footerData = null) {
+    async exportToPDF(title, headers, data, footerData = null) {
+        try { await ensureJsPDF(); }
+        catch (e) { this.ui.showModal('Error', 'Gagal memuat library PDF. Periksa koneksi internet.'); return; }
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
 
@@ -618,8 +686,11 @@ const AppUtils = {
     },
 
     async downloadChartReport(format = 'png') {
-        if (typeof html2canvas === 'undefined' || (format === 'pdf' && typeof window.jspdf === 'undefined')) {
-            this.ui.showModal('Error', 'Library ekspor belum termuat. Coba lagi sesaat.');
+        try {
+            await ensureHtml2canvas();
+            if (format === 'pdf') await ensureJsPDF();
+        } catch (e) {
+            this.ui.showModal('Error', 'Gagal memuat library ekspor. Periksa koneksi internet.');
             return;
         }
 
@@ -668,10 +739,8 @@ const AppUtils = {
                 mStart = new Date(today.getFullYear(), today.getMonth() - 1, monthStartDay);
                 mEnd = new Date(today.getFullYear(), today.getMonth(), monthEndDay, 23, 59, 59, 999);
             }
-            const monthData = this.state.allData.filter(d => {
-                const rowDate = new Date(d.tanggal);
-                return rowDate >= mStart && rowDate <= mEnd;
-            });
+            const mStartTs = mStart.getTime(), mEndTs = mEnd.getTime();
+            const monthData = this.state.allData.filter(d => d._ts >= mStartTs && d._ts <= mEndTs);
             const monthAggregatedData = this.handlers.aggregateData(monthData);
             const totalMonthCommission = Object.values(monthAggregatedData.byUser).reduce((sum, u) => sum + u.commissionOutlet, 0);
             const commissionProgress = targetCommission > 0 ? Math.min((totalMonthCommission / targetCommission) * 100, 100) : 0;

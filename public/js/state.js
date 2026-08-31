@@ -750,6 +750,7 @@ const AppState = {
     filterPresets: [], 
     isFilterPanelVisible: true,
     sessionCheckInterval: null,
+    _fetchAllInFlight: null,
 };
 
 

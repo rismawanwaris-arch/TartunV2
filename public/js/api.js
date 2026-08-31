@@ -39,20 +39,40 @@ const AppAPI = {
         }
     },
 
-    async fetchAllData() {
-        let allData = [];
-        let page = 1;
-        const limit = 1000;
+    fetchAllData() {
+        // Dedupe: bila init memicu beberapa pemanggilan berdekatan, mereka
+        // berbagi satu request HTTP alih-alih mengunduh data besar berkali-kali.
+        if (AppState._fetchAllInFlight) return AppState._fetchAllInFlight;
+        const p = this.api._fetchAllDataImpl();
+        AppState._fetchAllInFlight = p;
+        p.finally(() => { AppState._fetchAllInFlight = null; });
+        return p;
+    },
 
-        while (true) {
-            const res = await this.api.req(`/transactions?page=${page}&limit=${limit}`);
-            if (res.data && res.data.length > 0) {
-                allData = allData.concat(res.data);
+    async _fetchAllDataImpl() {
+        // Satu request untuk seluruh data (server mengirim response ter-gzip).
+        // Fallback ke paginasi paralel bila endpoint 'ambil semua' tidak tersedia.
+        try {
+            const res = await this.api.req('/transactions?limit=all');
+            if (Array.isArray(res.data)) return res.data;
+        } catch (e) {
+            console.warn('fetchAllData: single-request gagal, fallback ke paginasi paralel.', e);
+        }
+
+        const limit = 2000;
+        const first = await this.api.req(`/transactions?page=1&limit=${limit}`);
+        let allData = first.data || [];
+        const totalPages = first.totalPages || 1;
+
+        if (totalPages > 1) {
+            const requests = [];
+            for (let page = 2; page <= totalPages; page++) {
+                requests.push(this.api.req(`/transactions?page=${page}&limit=${limit}`));
             }
-            if (!res.data || res.data.length < limit) {
-                break;
+            const pages = await Promise.all(requests);
+            for (const p of pages) {
+                if (p.data && p.data.length) allData = allData.concat(p.data);
             }
-            page++;
         }
 
         return allData;

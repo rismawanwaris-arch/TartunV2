@@ -4,10 +4,18 @@ const db = require('../db');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const crypto = require('crypto');
 
+// Kolom yang benar-benar dipakai frontend. Sengaja tidak SELECT * agar
+// batch_id (UUID 36 char) & row_hash tidak ikut terkirim -> payload jauh lebih kecil.
+const LIST_COLUMNS = 'id, tanggal, nama, jumlah, keterangan, tipe_sheet, created_at';
+
 router.get('/', async (req, res) => {
   try {
-    const { page = 1, limit = 50, search = '', filterType = '', startDate = '', endDate = '' } = req.query;
-    const offset = (page - 1) * limit;
+    const { page = 1, search = '', filterType = '', startDate = '', endDate = '' } = req.query;
+    // limit=0 / limit=all -> ambil seluruh data dalam satu response (dipakai saat load awal)
+    const rawLimit = req.query.limit;
+    const fetchAll = rawLimit === '0' || rawLimit === 'all' || rawLimit === undefined;
+    const limit = fetchAll ? null : parseInt(rawLimit, 10) || 50;
+    const offset = limit ? (page - 1) * limit : 0;
 
     let whereClauses = [];
     let params = [];
@@ -30,17 +38,22 @@ router.get('/', async (req, res) => {
     const countRow = await db.getAsync(`SELECT COUNT(*) as total FROM transactions ${whereStr}`, params);
     const total = countRow.total;
 
-    const rows = await db.allAsync(
-      `SELECT * FROM transactions ${whereStr} ORDER BY tanggal DESC LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
+    const rows = limit
+      ? await db.allAsync(
+          `SELECT ${LIST_COLUMNS} FROM transactions ${whereStr} ORDER BY tanggal DESC LIMIT ? OFFSET ?`,
+          [...params, limit, offset]
+        )
+      : await db.allAsync(
+          `SELECT ${LIST_COLUMNS} FROM transactions ${whereStr} ORDER BY tanggal DESC`,
+          params
+        );
 
     res.json({
       data: rows,
       total,
       page: parseInt(page),
-      limit: parseInt(limit),
-      totalPages: Math.ceil(total / limit)
+      limit: limit || total,
+      totalPages: limit ? Math.ceil(total / limit) : 1
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

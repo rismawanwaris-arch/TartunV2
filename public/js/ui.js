@@ -480,12 +480,16 @@ const AppUI = {
             mEnd = new Date(today.getFullYear(), today.getMonth(), monthEndDay, 23, 59, 59, 999);
         }
 
+        const todayStartTs = todayStart.getTime(), todayEndTs = todayEnd.getTime();
+        const yStartTs = yStart.getTime(), yEndTs = yEnd.getTime();
+        const mStartTs = mStart.getTime(), mEndTs = mEnd.getTime();
+
         const todayData = [], yesterdayData = [], monthData = [];
         for (const d of this.state.allData) {
-            const rowDate = new Date(d.tanggal);
-            if (rowDate >= todayStart && rowDate <= todayEnd) todayData.push(d);
-            if (rowDate >= yStart && rowDate <= yEnd) yesterdayData.push(d);
-            if (rowDate >= mStart && rowDate <= mEnd) monthData.push(d);
+            const ts = d._ts;
+            if (ts >= todayStartTs && ts <= todayEndTs) todayData.push(d);
+            if (ts >= yStartTs && ts <= yEndTs) yesterdayData.push(d);
+            if (ts >= mStartTs && ts <= mEndTs) monthData.push(d);
         }
 
         const todayAggregated = this.handlers.aggregateData(todayData);
@@ -951,17 +955,18 @@ const AppUI = {
         const sevenDaysAgo = new Date();
         sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
         sevenDaysAgo.setHours(0, 0, 0, 0);
-        const recentData = this.state.allData.filter(d => new Date(d.tanggal) >= sevenDaysAgo);
+        const sevenDaysAgoTs = sevenDaysAgo.getTime();
 
-        recentData.forEach(row => {
-            const dateString = new Date(row.tanggal).toLocaleDateString('id-ID', {
+        for (const row of this.state.allData) {
+            if (row._ts < sevenDaysAgoTs) continue;
+            const dateString = new Date(row._ts).toLocaleDateString('id-ID', {
                 day: '2-digit',
                 month: 'short'
             });
             if (dailyAdminFees.hasOwnProperty(dateString)) {
                 dailyAdminFees[dateString] += this.utils.calculateAdminFee(row, this.state.settings);
             }
-        });
+        }
 
         const dataValues = dateLabels.map(label => dailyAdminFees[label]);
         const isDarkMode = document.documentElement.classList.contains('dark');

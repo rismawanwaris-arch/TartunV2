@@ -2,11 +2,15 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Kompresi response (gzip/brotli). Payload JSON transaksi ~10 MB -> ~0.9 MB.
+app.use(compression());
 
 // Security Middleware
 app.use(helmet({
@@ -24,9 +28,17 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Static files
-app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Static files. Aset JS/CSS memakai query cache-busting (?v=x.y.z) sehingga
+// aman di-cache lama; index.html tetap harus selalu divalidasi.
+app.use(express.static(path.join(__dirname, 'public'), {
+  maxAge: '30d',
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('index.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  }
+}));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), { maxAge: '7d' }));
 
 const authRoutes = require('./routes/auth');
 const usersRoutes = require('./routes/users');
