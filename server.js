@@ -12,9 +12,15 @@ const PORT = process.env.PORT || 3000;
 // Kompresi response (gzip/brotli). Payload JSON transaksi ~10 MB -> ~0.9 MB.
 app.use(compression());
 
-// Security Middleware
+// Security Middleware.
+// COOP / Origin-Agent-Cluster / CORP dimatikan: app diakses lewat HTTP polos di
+// IP LAN/Tailscale (bukan HTTPS/localhost), sehingga header ini diabaikan browser
+// dan hanya menimbulkan warning di console tanpa manfaat keamanan.
 app.use(helmet({
-  contentSecurityPolicy: false
+  contentSecurityPolicy: false,
+  crossOriginOpenerPolicy: false,
+  originAgentCluster: false,
+  crossOriginResourcePolicy: false
 }));
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
