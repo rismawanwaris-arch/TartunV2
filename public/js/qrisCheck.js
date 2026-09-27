@@ -168,13 +168,14 @@ const AppQrisCheck = {
 
         const settings = this.state.settings;
         const esc = this.qrisCheck._escapeHtml;
-        let totalReceived = 0, totalFee = 0, totalCash = 0;
+        let totalReceived = 0, totalFee = 0, totalCash = 0, totalPayment = 0;
 
         const rowsHtml = transactions.map((tx, idx) => {
             const { fee, cash } = this.qrisCheck.computeRow(tx, settings);
             totalReceived += tx.amount;
             totalFee += fee;
             totalCash += cash;
+            if (tx.isPayment) totalPayment++;
 
             const statusLabel = tx.isPayment ? 'Pembayaran' : 'OK';
             const statusClass = tx.isPayment ? 'text-text-secondary' : 'text-color-success';
@@ -219,6 +220,7 @@ const AppQrisCheck = {
         document.getElementById('qris-check-total-fee').textContent = this.utils.formatCurrency(totalFee);
         document.getElementById('qris-check-total-cash').textContent = this.utils.formatCurrency(totalCash);
         document.getElementById('qris-check-total-count').textContent = transactions.length;
+        document.getElementById('qris-check-total-payment').textContent = totalPayment;
 
         summaryEl.classList.remove('hidden');
         resultsEl.classList.remove('hidden');
