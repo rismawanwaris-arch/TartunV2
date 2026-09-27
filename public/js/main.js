@@ -17,6 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
         auth: AppAuth,
         ui: AppUI,
         handlers: AppHandlers,
+        qrisCheck: AppQrisCheck,
         settings: {
             async load() {
                 try {
@@ -163,7 +164,7 @@ document.addEventListener('DOMContentLoaded', () => {
         },
 
         init() {
-            ['utils', 'api', 'auth', 'ui', 'handlers', 'settings'].forEach(moduleName => {
+            ['utils', 'api', 'auth', 'ui', 'handlers', 'qrisCheck', 'settings'].forEach(moduleName => {
                 const module = this[moduleName];
                 for (const key in module) {
                     if (typeof module[key] === 'function') {

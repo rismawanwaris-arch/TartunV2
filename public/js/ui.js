@@ -416,6 +416,9 @@ const AppUI = {
         async charts() {
             this.handlers.renderChartsView();
         },
+        async 'qris-check' () {
+            this.qrisCheck.setup();
+        },
         async analysis() {
             this.handlers.setupAnalysisView();
         },

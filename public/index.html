@@ -56,6 +56,10 @@
                         <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                         <span>Chart Data</span>
                     </button>
+                    <button data-view="qris-check" class="btn-nav">
+                        <i data-lucide="qr-code" class="w-5 h-5"></i>
+                        <span>Cek Admin QRIS</span>
+                    </button>
                 </div>
             </div>
 
@@ -379,6 +383,76 @@
                         </div>
                         <div id="type-stats-panel" class="col-span-2 flex flex-col justify-center space-y-4"></div>
                      </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="qris-check-template">
+        <div class="animate-fade-in flex flex-col h-full gap-4">
+            <div class="flex-shrink-0">
+                <h2 class="text-2xl font-display">Cek Admin QRIS</h2>
+                <p class="text-xs text-text-secondary mt-1">Tempel teks notifikasi QRIS untuk menghitung biaya admin & tunai keluar sesuai pengaturan yang berlaku saat ini. Perhitungan hanya berjalan di browser Anda — tidak ada data yang dikirim atau disimpan ke server.</p>
+            </div>
+
+            <div class="glass-panel p-5 border-l-4 border-cyan-500 flex-shrink-0">
+                <div class="flex items-center gap-2 mb-2">
+                    <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="qr-code" class="w-4 h-4"></i></div>
+                    <h3 class="font-bold text-sm text-text-primary">Tempel Notifikasi QRIS</h3>
+                </div>
+                <div class="relative w-full mt-1">
+                    <label for="qris-check-input" class="sr-only">Teks Notifikasi QRIS</label>
+                    <textarea id="qris-check-input" class="form-textarea w-full h-40" placeholder="Tempel teks notifikasi QRIS di sini, contoh:&#10;RRN: 00F1000ZT4P1 | 21.42 WIB&#10;ALFA 1 CELL (NMID: ID1026574479725)&#10;Menerima pembayaran dari SEABANK a.n. **YLA ****SYA&#10;+ Rp 175.000"></textarea>
+                </div>
+                <div class="flex gap-2 mt-3">
+                    <button id="qris-check-clear-btn" class="btn btn-secondary">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> Hapus
+                    </button>
+                    <button id="qris-check-process-btn" class="btn btn-primary flex-1">
+                        <i data-lucide="play-circle" class="w-4 h-4"></i> Proses
+                    </button>
+                </div>
+            </div>
+
+            <div id="qris-check-summary" class="grid grid-cols-2 md:grid-cols-4 gap-4 flex-shrink-0 hidden">
+                <div class="glass-panel p-4 border-l-4 border-sky-500">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">Total Diterima</h3>
+                    <p class="text-xl font-display font-bold text-sky-400 mt-1" id="qris-check-total-received">Rp 0</p>
+                </div>
+                <div class="glass-panel p-4 border-l-4 border-amber-500">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">Total Fee Admin</h3>
+                    <p class="text-xl font-display font-bold text-amber-400 mt-1" id="qris-check-total-fee">Rp 0</p>
+                </div>
+                <div class="glass-panel p-4 border-l-4 border-emerald-500">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">Total Tunai Keluar</h3>
+                    <p class="text-xl font-display font-bold text-emerald-400 mt-1" id="qris-check-total-cash">Rp 0</p>
+                </div>
+                <div class="glass-panel p-4 border-l-4 border-purple-500">
+                    <h3 class="text-xs font-bold uppercase tracking-wider text-text-secondary">Jumlah Transaksi</h3>
+                    <p class="text-xl font-display font-bold text-purple-400 mt-1" id="qris-check-total-count">0</p>
+                </div>
+            </div>
+
+            <div id="qris-check-results" class="glass-panel p-2 flex flex-col flex-1 min-h-0 hidden">
+                <div class="overflow-auto flex-grow">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-bg-panel backdrop-blur-sm z-10">
+                            <tr class="text-left text-xs uppercase text-text-secondary border-b border-border-color">
+                                <th class="p-2">#</th>
+                                <th class="p-2">Waktu</th>
+                                <th class="p-2">Outlet</th>
+                                <th class="p-2">Bank</th>
+                                <th class="p-2">Nama</th>
+                                <th class="p-2 text-right">Diterima</th>
+                                <th class="p-2 text-right">Admin</th>
+                                <th class="p-2 text-right">Tunai Keluar</th>
+                                <th class="p-2 text-center">Bayar?</th>
+                                <th class="p-2">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="qris-check-table-body"></tbody>
+                        <tfoot id="qris-check-table-foot"></tfoot>
+                    </table>
                 </div>
             </div>
         </div>
@@ -1265,13 +1339,14 @@
         </div>
     </template>
     
-    <script defer src="js/state.js?v=1.6.0"></script>
-    <script defer src="js/utils.js?v=1.6.0"></script>
-    <script defer src="js/api.js?v=1.6.0"></script>
-    <script defer src="js/auth.js?v=1.6.0"></script>
-    <script defer src="js/virtualScroll.js?v=1.6.0"></script>
-    <script defer src="js/handlers.js?v=1.6.0"></script>
-    <script defer src="js/ui.js?v=1.6.0"></script>
-    <script defer src="js/main.js?v=1.6.0"></script>
+    <script defer src="js/state.js?v=1.7.0"></script>
+    <script defer src="js/utils.js?v=1.7.0"></script>
+    <script defer src="js/api.js?v=1.7.0"></script>
+    <script defer src="js/auth.js?v=1.7.0"></script>
+    <script defer src="js/virtualScroll.js?v=1.7.0"></script>
+    <script defer src="js/qrisCheck.js?v=1.7.0"></script>
+    <script defer src="js/handlers.js?v=1.7.0"></script>
+    <script defer src="js/ui.js?v=1.7.0"></script>
+    <script defer src="js/main.js?v=1.7.0"></script>
 </body>
 </html>
