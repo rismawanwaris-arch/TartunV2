@@ -28,7 +28,7 @@
     <!-- xlsx / jspdf / jspdf-autotable / html2canvas dimuat lazy saat fitur
          import/export dipakai (lihat ensureXLSX/ensureJsPDF/ensureHtml2canvas di utils.js). -->
 
-    <link rel="stylesheet" href="style.css?v=1.2.0">
+    <link rel="stylesheet" href="style.css?v=1.9.6">
 </head>
 <body class="min-h-screen text-sm">
 
@@ -119,7 +119,7 @@
                                 <div class="col-span-4">
                                     <label for="filter-search" class="text-xs font-bold text-text-secondary">Cari</label>
                                     <div class="relative w-full mt-1">
-                                        <input type="text" id="filter-search" name="filter-search" class="form-input w-full pr-10" placeholder="Cari nama, keterangan, jumlah...">
+                                        <input type="text" id="filter-search" name="filter-search" class="form-input w-full pr-10" placeholder="Cari nama, keterangan, jumlah... (&quot;frasa&quot; untuk frasa utuh)">
                                         <button class="absolute inset-y-0 right-0 flex items-center pr-3 text-text-secondary hover:text-color-primary clear-btn hidden">
                                             <i data-lucide="x-circle" class="w-5 h-5 pointer-events-none"></i>
                                         </button>
@@ -600,51 +600,21 @@
                     <div class="glass-panel p-5 border-l-4 border-purple-500">
                          <div class="flex items-center gap-2">
                              <div class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400"><i data-lucide="file-up" class="w-4 h-4"></i></div>
-                             <h3 class="font-bold text-sm text-text-primary">Opsi 2: Unggah File CSV</h3>
+                             <h3 class="font-bold text-sm text-text-primary">Opsi 2: Unggah File (CSV / Excel)</h3>
                          </div>
-                         <p id="csv-instructions" class="text-xs text-text-secondary mt-2"></p>
-                         <div class="mt-3">
-                            <label for="csv-file-input" class="sr-only">Pilih File CSV</label>
-                            <input type="file" id="csv-file-input" name="csv-file-input" class="hidden" accept=".csv">
-                            <button id="upload-csv-btn" class="btn btn-secondary w-full flex items-center justify-center gap-2">
+                         <p class="text-xs text-text-secondary mt-2">Mendukung CSV template aplikasi, Laporan Excel Merchant BCA, Settlement QRIS, dan format lain yang ditambahkan di <span class="text-purple-300">Pengaturan &gt; Data &gt; Profil Format Import</span>. Format dikenali otomatis dari header file.</p>
+                         <div class="mt-3 space-y-2">
+                            <label for="import-profile-select" class="text-xs font-bold text-text-secondary">Format File</label>
+                            <select id="import-profile-select" name="import-profile-select" class="form-select w-full">
+                                <option value="auto">Deteksi otomatis</option>
+                            </select>
+                            <label for="import-file-input" class="sr-only">Pilih File</label>
+                            <input type="file" id="import-file-input" name="import-file-input" class="hidden" accept=".csv,.xlsx,.xls">
+                            <button id="upload-import-file-btn" class="btn btn-secondary w-full flex items-center justify-center gap-2">
                                 <i data-lucide="upload-cloud" class="w-5 h-5"></i>
-                                <span>Pilih File CSV</span>
+                                <span>Pilih File (.csv / .xlsx)</span>
                             </button>
-                            <p id="csv-file-name" class="text-xs text-center text-text-muted mt-2 truncate"></p>
-                         </div>
-                    </div>
-    
-                    <div class="glass-panel p-5 border-l-4 border-emerald-500">
-                         <div class="flex items-center gap-2">
-                             <div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i></div>
-                             <h3 class="font-bold text-sm text-text-primary">Opsi 3: Unggah Laporan Excel Merchant BCA</h3>
-                         </div>
-                         <p class="text-xs text-text-secondary mt-2">Unggah file laporan resmi Merchant BCA (<code class="text-emerald-400 font-mono text-[11px]">ReportMerchantBCA_*.xlsx</code>). Sistem otomatis membaca dan menggabungkan seluruh cabang sekaligus dalam 0,1 detik.</p>
-                         <div class="mt-3">
-                            <label for="bca-excel-file-input" class="sr-only">Pilih File Excel BCA</label>
-                            <input type="file" id="bca-excel-file-input" name="bca-excel-file-input" class="hidden" accept=".xlsx,.xls">
-                            <button id="upload-bca-excel-btn" class="btn btn-secondary w-full flex items-center justify-center gap-2 border-emerald-500/30 hover:border-emerald-500/60 text-emerald-300">
-                                <i data-lucide="file-check-2" class="w-5 h-5 text-emerald-400"></i>
-                                <span>Pilih File Excel Merchant BCA (.xlsx)</span>
-                            </button>
-                            <p id="bca-excel-file-name" class="text-xs text-center text-emerald-400 font-medium mt-2 truncate"></p>
-                         </div>
-                    </div>
-    
-                    <div class="glass-panel p-5 border-l-4 border-cyan-500">
-                         <div class="flex items-center gap-2">
-                             <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="qr-code" class="w-4 h-4"></i></div>
-                             <h3 class="font-bold text-sm text-text-primary">Opsi 4: Unggah Laporan Settlement QRIS (CSV)</h3>
-                         </div>
-                         <p class="text-xs text-text-secondary mt-2">Unggah file laporan settlement dari payment gateway (kolom: Outlet Code, Outlet Name, Amount (Rp), Payment Method, Transaction Date, dst). Nama outlet otomatis dipetakan lewat NMID di Pengaturan, dan hanya transaksi berstatus <code class="text-cyan-400 font-mono text-[11px]">success</code> yang diproses.</p>
-                         <div class="mt-3">
-                            <label for="qris-settlement-csv-input" class="sr-only">Pilih File Settlement QRIS</label>
-                            <input type="file" id="qris-settlement-csv-input" name="qris-settlement-csv-input" class="hidden" accept=".csv">
-                            <button id="upload-qris-settlement-btn" class="btn btn-secondary w-full flex items-center justify-center gap-2 border-cyan-500/30 hover:border-cyan-500/60 text-cyan-300">
-                                <i data-lucide="qr-code" class="w-5 h-5 text-cyan-400"></i>
-                                <span>Pilih File Settlement QRIS (.csv)</span>
-                            </button>
-                            <p id="qris-settlement-file-name" class="text-xs text-center text-cyan-400 font-medium mt-2 truncate"></p>
+                            <p id="import-file-name" class="text-xs text-center text-purple-300 font-medium mt-2 truncate"></p>
                          </div>
                     </div>
     
@@ -1020,6 +990,28 @@
 
                         <div class="accordion-item">
                             <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="file-cog" class="w-5 h-5 text-color-primary"></i> Profil Format Import</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div id="import-profiles-editor" class="p-6 border-t border-border-color space-y-6">
+                                    <p class="text-xs text-text-secondary">Aturan struktur kolom untuk <b>Opsi 2: Unggah File</b> di halaman Input &amp; Validasi. Saat upload, format dipilih otomatis berdasarkan kata kunci header, atau dipilih manual.</p>
+                                    <div class="flex flex-wrap items-end gap-2">
+                                        <div class="flex-1 min-w-[200px]">
+                                            <label for="import-profile-edit-select" class="text-xs font-bold text-text-secondary">Profil</label>
+                                            <select id="import-profile-edit-select" class="form-select w-full mt-1"></select>
+                                        </div>
+                                        <button type="button" id="import-profile-duplicate-btn" class="btn btn-secondary btn-sm">Duplikat</button>
+                                        <button type="button" id="import-profile-delete-btn" class="btn btn-danger btn-sm">Hapus</button>
+                                        <button type="button" id="import-profile-reset-btn" class="btn btn-secondary btn-sm">Kembalikan Bawaan</button>
+                                    </div>
+                                    <div id="import-profile-form" class="space-y-6"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="accordion-item">
+                            <button class="accordion-button">
                                  <span class="flex items-center gap-3"><i data-lucide="key-round" class="w-5 h-5 text-color-primary"></i> Aturan Kata Kunci</span>
                                 <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
                             </button>
@@ -1309,6 +1301,48 @@
                     </div>
     
                     <div id="settings-tab-content-sistem" data-content="sistem" class="settings-tab-content space-y-4 hidden">
+                        <div id="api-keys-panel" class="accordion-item hidden">
+                            <button class="accordion-button">
+                                <span class="flex items-center gap-3"><i data-lucide="plug-zap" class="w-5 h-5 text-color-primary"></i> API Ingest Transaksi QR</span>
+                                <i data-lucide="chevron-down" class="accordion-icon w-5 h-5"></i>
+                            </button>
+                            <div class="accordion-content">
+                                <div class="p-6 border-t border-border-color space-y-6">
+                                    <div>
+                                        <div class="font-bold text-sm">Endpoint</div>
+                                        <p class="text-xs text-text-secondary mt-1">Sistem lain (payment gateway, skrip, aplikasi) mengirim transaksi QR ke URL ini dengan header <code>X-API-Key</code>. Data diolah dengan aturan yang sama seperti upload file (pemetaan NMID, template keterangan, biaya admin) dan RRN/REF yang sudah tersimpan otomatis ditolak sebagai duplikat, jadi aman dikirim ulang. Maksimal 500 transaksi per request; waktu tanpa zona dianggap WIB.</p>
+                                        <div class="flex items-center gap-2 mt-2">
+                                            <code id="api-ingest-endpoint" class="flex-1 p-2 rounded bg-black/30 text-xs break-all"></code>
+                                            <button type="button" id="api-ingest-copy-endpoint" class="btn btn-secondary btn-sm">Salin</button>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="flex items-center justify-between">
+                                            <div class="font-bold text-sm">Contoh Request</div>
+                                            <button type="button" id="api-ingest-copy-example" class="btn btn-secondary btn-sm">Salin</button>
+                                        </div>
+                                        <pre id="api-ingest-example" class="mt-2 p-3 rounded bg-black/30 text-[11px] overflow-x-auto"></pre>
+                                        <p class="text-xs text-text-secondary mt-2">Wajib: <code>ref</code>, <code>amount</code>, <code>paid_at</code>, dan <code>outlet_code</code> atau <code>outlet_name</code>. Respons berisi status tiap item: <code>inserted</code>, <code>duplicate</code>, atau <code>rejected</code> beserta alasannya.</p>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-sm">API Key</div>
+                                        <div class="flex gap-2 mt-2">
+                                            <label for="api-key-name" class="sr-only">Nama API key</label>
+                                            <input type="text" id="api-key-name" maxlength="60" class="form-input flex-1" placeholder="Nama sistem pengirim, mis. Payment Gateway Utama">
+                                            <button type="button" id="api-key-create-btn" class="btn btn-primary btn-sm">Buat API Key</button>
+                                        </div>
+                                        <div id="api-key-new-result" class="hidden mt-3 p-3 rounded-lg border border-amber-500/50 bg-amber-500/10">
+                                            <p class="text-xs font-bold text-amber-300">Salin key ini sekarang — tidak akan ditampilkan lagi.</p>
+                                            <div class="flex items-center gap-2 mt-2">
+                                                <code id="api-key-new-value" class="flex-1 p-2 rounded bg-black/30 text-xs break-all"></code>
+                                                <button type="button" id="api-key-copy-new" class="btn btn-secondary btn-sm">Salin</button>
+                                            </div>
+                                        </div>
+                                        <div id="api-key-list" class="space-y-2 mt-3"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <div class="accordion-item">
                             <button class="accordion-button">
                                 <span class="flex items-center gap-3"><i data-lucide="database-backup" class="w-5 h-5 text-color-primary"></i> Backup & Restore Pengaturan</span>
@@ -1366,14 +1400,17 @@
         </div>
     </template>
     
-    <script defer src="js/state.js?v=1.8.0"></script>
-    <script defer src="js/utils.js?v=1.8.0"></script>
-    <script defer src="js/api.js?v=1.8.0"></script>
-    <script defer src="js/auth.js?v=1.8.0"></script>
-    <script defer src="js/virtualScroll.js?v=1.8.0"></script>
-    <script defer src="js/qrisCheck.js?v=1.8.0"></script>
-    <script defer src="js/handlers.js?v=1.8.0"></script>
-    <script defer src="js/ui.js?v=1.8.0"></script>
-    <script defer src="js/main.js?v=1.8.0"></script>
+    <script defer src="js/state.js?v=1.9.6"></script>
+    <script defer src="js/utils.js?v=1.9.6"></script>
+    <script defer src="js/importEngine.js?v=1.9.6"></script>
+    <script defer src="js/importSettings.js?v=1.9.6"></script>
+    <script defer src="js/apiKeysSettings.js?v=1.9.6"></script>
+    <script defer src="js/api.js?v=1.9.6"></script>
+    <script defer src="js/auth.js?v=1.9.6"></script>
+    <script defer src="js/virtualScroll.js?v=1.9.6"></script>
+    <script defer src="js/qrisCheck.js?v=1.9.6"></script>
+    <script defer src="js/handlers.js?v=1.9.6"></script>
+    <script defer src="js/ui.js?v=1.9.6"></script>
+    <script defer src="js/main.js?v=1.9.6"></script>
 </body>
 </html>

@@ -1200,11 +1200,12 @@ const AppUI = {
         if (!tableHeadWrapper) return;
     
         tableHeadWrapper.innerHTML = `
-            <div class="grid grid-cols-[120px,1fr,1fr,1fr,1fr,80px] gap-x-4 font-bold text-xs text-text-secondary uppercase p-2">
+            <div class="grid grid-cols-[120px,1fr,1fr,1fr,120px,1fr,80px] gap-x-4 font-bold text-xs text-text-secondary uppercase p-2">
                 <div>Status</div>
                 <div>Tanggal</div>
                 <div>Nama</div>
                 <div>Jumlah</div>
+                <div>Biaya Admin</div>
                 <div>Keterangan</div>
                 <div class="text-center">Aksi</div>
             </div>
@@ -1256,13 +1257,18 @@ const AppUI = {
             ? `<input type="text" class="${inputClass} w-full" value="${item.data.jumlah || ''}">`
             : `<div class="truncate">${this.utils.formatCurrency(item.data.jumlah)}</div>`;
 
+        // Pratinjau saja; nilai final dihitung ulang server saat data di-push.
+        const adminFeeDisplay = isError
+            ? '<div class="text-text-muted">-</div>'
+            : `<div class="truncate">${this.utils.formatCurrency(this.utils.calculateAdminFee(item.data, this.state.settings))}</div>`;
+
         const keteranganDisplay = isError 
             ? `<input type="text" class="${inputClass} w-full" value="${item.data.keterangan || ''}">` 
             : `<div class="truncate" title="${item.data.keterangan || ''}">${item.data.keterangan || ''}</div>`;
 
 
         return `
-            <div class="h-[60px] grid grid-cols-[120px,1fr,1fr,1fr,1fr,80px] gap-x-4 items-center border-t border-border-color/50 p-2" data-index="${item.originalIndex}">
+            <div class="h-[60px] grid grid-cols-[120px,1fr,1fr,1fr,120px,1fr,80px] gap-x-4 items-center border-t border-border-color/50 p-2" data-index="${item.originalIndex}">
                 <div>
                     <div class="flex items-center gap-2 ${statusClass}">
                         <i data-lucide="${statusIcon}" class="w-4 h-4"></i>
@@ -1278,6 +1284,9 @@ const AppUI = {
                 </div>
                 <div>
                     ${jumlahDisplay}
+                </div>
+                <div>
+                    ${adminFeeDisplay}
                 </div>
                 <div>
                     ${keteranganDisplay}
@@ -1633,12 +1642,14 @@ const AppUI = {
                 <div class="p-2">Tanggal</div>
                 <div class="p-2">Nama</div>
                 <div class="p-2 text-right">Jumlah</div>
+                <div class="p-2 text-right">Biaya Admin</div>
                 <div class="p-2">Keterangan</div>
                 <div class="p-2 text-center">Aksi</div>
             </div>
         `;
 
         const totalAmount = data.reduce((sum, row) => sum + (parseFloat(row.jumlah) || 0), 0);
+        const totalAdminFee = data.reduce((sum, row) => sum + this.utils.calculateAdminFee(row, this.state.settings), 0);
 
         const contentHTML = `
             <div id="transaction-modal-controls" class="flex justify-between items-center mb-4">
@@ -1668,6 +1679,7 @@ const AppUI = {
                         <div class="p-2">TOTAL TRANSAKSI:</div>
                         <div class="p-2"></div>
                         <div class="p-2 text-right text-color-primary text-sm font-display font-bold">${this.utils.formatCurrency(totalAmount)}</div>
+                        <div class="p-2 text-right text-color-primary text-sm font-display font-bold">${this.utils.formatCurrency(totalAdminFee)}</div>
                         <div class="p-2"></div>
                         <div class="p-2"></div>
                     </div>
@@ -1702,6 +1714,7 @@ const AppUI = {
                     <div class="p-2 truncate">${new Date(row.tanggal).toLocaleString('id-ID')}</div>
                     <div class="p-2 truncate">${row.nama}</div>
                     <div class="p-2 text-right">${this.utils.formatCurrency(row.jumlah)}</div>
+                    <div class="p-2 text-right">${this.utils.formatCurrency(this.utils.calculateAdminFee(row, this.state.settings))}</div>
                     <div class="p-2 truncate" title="${row.keterangan}">${row.keterangan}</div>
                     <div class="p-2 text-center flex justify-center gap-1">
                         ${reportButtonHTML}

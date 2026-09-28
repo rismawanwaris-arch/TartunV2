@@ -79,7 +79,7 @@ const AppAPI = {
     },
 
     async addDataBatch(batch) {
-        await this.api.req('/transactions/bulk', {
+        return await this.api.req('/transactions/bulk', {
             method: 'POST',
             body: JSON.stringify({ rows: batch })
         });
@@ -93,10 +93,11 @@ const AppAPI = {
     },
 
     async updateDataBatch(updates) {
-        return await this.api.req('/transactions/bulk-update', {
+        const res = await this.api.req('/transactions/bulk-update', {
             method: 'PUT',
             body: JSON.stringify({ updates: updates })
         });
+        return res.count;
     },
 
     async deleteDataBatch(ids) {

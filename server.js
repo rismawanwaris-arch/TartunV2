@@ -53,6 +53,8 @@ const summaryRoutes = require('./routes/summary');
 const settingsRoutes = require('./routes/settings');
 const dashboardRoutes = require('./routes/dashboard');
 const logsRoutes = require('./routes/logs');
+const ingestRoutes = require('./routes/ingest');
+const apiKeysRoutes = require('./routes/apiKeys');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
@@ -61,6 +63,15 @@ app.use('/api/summary', summaryRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/logs', logsRoutes);
+app.use('/api/v1/ingest', ingestRoutes);
+app.use('/api/api-keys', apiKeysRoutes);
+
+// Error dari parser body (JSON rusak, body terlalu besar) dijawab JSON untuk
+// request API, bukan halaman HTML bawaan Express.
+app.use('/api', (err, req, res, next) => {
+  if (!err.status || err.status >= 500) return next(err);
+  res.status(err.status).json({ success: false, error: err.type === 'entity.parse.failed' ? 'Body bukan JSON yang valid' : err.message });
+});
 
 // SPA fallback
 app.use((req, res) => {

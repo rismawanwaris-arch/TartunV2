@@ -1,8 +1,17 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const { compileAdminRules, computeAdminFee } = require('./utils/adminFee');
+const { extractReference } = require('./utils/transactionRef');
 
-const dbPath = path.resolve(__dirname, 'data/tartun.db');
+const dbPath = process.env.TARTUN_DB_PATH
+  ? path.resolve(process.env.TARTUN_DB_PATH)
+  : path.resolve(__dirname, 'data/tartun.db');
+
+// Selesai setelah skema & migrasi admin_fee rampung (dipakai test).
+let resolveReady;
+const ready = new Promise(resolve => { resolveReady = resolve; });
+
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
@@ -11,6 +20,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
     initDb();
   }
 });
+db.ready = ready;
 
 function initDb() {
   db.serialize(() => {
@@ -66,6 +76,21 @@ function initDb() {
       )
     `);
     db.run(`CREATE INDEX IF NOT EXISTS idx_logs_actor ON logs(actor)`);
+
+    // API key untuk endpoint ingest. Hanya hash SHA-256 yang disimpan;
+    // key asli ditampilkan sekali saat dibuat.
+    db.run(`
+      CREATE TABLE IF NOT EXISTS api_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        key_prefix TEXT NOT NULL UNIQUE,
+        key_hash TEXT NOT NULL,
+        created_by TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_used_at DATETIME,
+        revoked_at DATETIME
+      )
+    `);
     db.run(`CREATE INDEX IF NOT EXISTS idx_logs_action ON logs(action)`);
 
     db.run(`
@@ -352,7 +377,80 @@ function initDb() {
         db.run(`INSERT INTO users (email, password_hash, role) VALUES (?, ?, 'Master')`, [masterEmail, hash]);
       }
     });
+
+    // Dijalankan setelah semua statement di atas selesai (mode serialize).
+    db.run('SELECT 1', () => {
+      migrateAdminFee()
+        .catch(err => console.error('Migrasi admin_fee gagal:', err.message))
+        .then(migrateRefCode)
+        .catch(err => console.error('Migrasi ref_code gagal:', err.message))
+        .finally(resolveReady);
+    });
   });
+}
+
+// Kolom admin_fee menyimpan biaya admin yang dihitung saat data di-upload.
+// Baris lama (admin_fee NULL) diisi sekali memakai aturan admin di settings.
+async function migrateAdminFee() {
+  const cols = await db.allAsync('PRAGMA table_info(transactions)');
+  if (!cols.some(c => c.name === 'admin_fee')) {
+    await db.runAsync('ALTER TABLE transactions ADD COLUMN admin_fee REAL');
+    console.log('Kolom transactions.admin_fee ditambahkan.');
+  }
+
+  const pending = await db.allAsync('SELECT id, jumlah, keterangan, tipe_sheet FROM transactions WHERE admin_fee IS NULL');
+  if (pending.length === 0) return;
+
+  const settingsRow = await db.getAsync('SELECT settings FROM app_settings WHERE id = 1');
+  const compiled = compileAdminRules(settingsRow ? JSON.parse(settingsRow.settings).adminRules : []);
+
+  await db.withTransaction(async () => {
+    for (const row of pending) {
+      await db.runAsync('UPDATE transactions SET admin_fee = ? WHERE id = ? AND admin_fee IS NULL', [computeAdminFee(row, compiled), row.id]);
+    }
+  });
+  console.log(`Backfill admin_fee: ${pending.length} baris.`);
+}
+
+// Kolom ref_code menyimpan RRN/REF dari keterangan (string kosong bila tidak ada)
+// dan diindeks, dipakai untuk deteksi duplikat lintas outlet.
+async function migrateRefCode() {
+  const cols = await db.allAsync('PRAGMA table_info(transactions)');
+  if (!cols.some(c => c.name === 'ref_code')) {
+    await db.runAsync('ALTER TABLE transactions ADD COLUMN ref_code TEXT');
+    console.log('Kolom transactions.ref_code ditambahkan.');
+  }
+  await db.runAsync('CREATE INDEX IF NOT EXISTS idx_transactions_ref_code ON transactions(ref_code)');
+
+  const pending = await db.allAsync('SELECT id, keterangan FROM transactions WHERE ref_code IS NULL');
+  if (pending.length > 0) await backfillRefCode(pending);
+  await ensureUniqueRefIndex();
+}
+
+// Satu transaksi ber-RRN hanya boleh tersimpan sekali per jumlah. Indeks ini
+// membuat pengiriman ulang lewat API aman walau request datang bersamaan.
+// Bila data lama sudah berisi pasangan ganda, indeks dilewati (dengan peringatan)
+// dan pencegahan duplikat tetap berjalan di level aplikasi.
+async function ensureUniqueRefIndex() {
+  const conflicts = await db.getAsync(`
+    SELECT COUNT(*) AS c FROM (
+      SELECT 1 FROM transactions WHERE ref_code <> '' GROUP BY ref_code, jumlah HAVING COUNT(*) > 1
+    )`);
+  if (conflicts.c > 0) {
+    console.warn(`Indeks unik ref_code dilewati: ${conflicts.c} pasangan RRN+jumlah ganda di data lama.`);
+    return;
+  }
+  await db.runAsync(`CREATE UNIQUE INDEX IF NOT EXISTS uniq_transactions_ref_amount
+    ON transactions(ref_code, jumlah) WHERE ref_code <> ''`);
+}
+
+async function backfillRefCode(pending) {
+  await db.withTransaction(async () => {
+    for (const row of pending) {
+      await db.runAsync('UPDATE transactions SET ref_code = ? WHERE id = ? AND ref_code IS NULL', [extractReference(row.keterangan), row.id]);
+    }
+  });
+  console.log(`Backfill ref_code: ${pending.length} baris.`);
 }
 
 db.getAsync = (sql, params = []) => new Promise((resolve, reject) => {
@@ -369,5 +467,29 @@ db.runAsync = (sql, params = []) => new Promise((resolve, reject) => {
     else resolve(this);
   });
 });
+
+// Satu koneksi SQLite dipakai bersama semua request, jadi transaksi harus
+// bergiliran: BEGIN kedua saat transaksi lain masih terbuka akan gagal.
+// withTransaction menjalankan fn(db) di dalam BEGIN/COMMIT secara berurutan.
+let transactionQueue = Promise.resolve();
+db.withTransaction = fn => {
+  const run = transactionQueue.then(async () => {
+    await db.runAsync('BEGIN TRANSACTION');
+    try {
+      const result = await fn(db);
+      await db.runAsync('COMMIT');
+      return result;
+    } catch (err) {
+      await db.runAsync('ROLLBACK').catch(() => {});
+      throw err;
+    }
+  });
+  transactionQueue = run.catch(() => {});
+  return run;
+};
+
+db.migrateAdminFee = migrateAdminFee;
+db.migrateRefCode = migrateRefCode;
+db.ensureUniqueRefIndex = ensureUniqueRefIndex;
 
 module.exports = db;

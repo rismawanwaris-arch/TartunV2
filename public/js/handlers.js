@@ -319,12 +319,33 @@ const AppHandlers = {
         for (const row of this.state.allData) {
             searchableText.set(
                 row.id,
-                `${row.nama || ''} ${row.keterangan || ''} ${row.jumlah || ''}`.toLowerCase()
+                `${row.nama || ''} ${row.keterangan || ''} ${row.jumlah || ''}`.toLowerCase().replace(/\s+/g, ' ')
             );
         }
         this.state.dataIndexes = { searchableText };
         this.ui.setStatus(`Data diindeks. Total: ${this.state.allData.length} baris.`);
         return searchableText;
+    },
+
+    // Ubah kata kunci menjadi daftar pola: teks dalam tanda kutip dicari sebagai
+    // frasa ("tartun qr"), sisanya per kata. Semua pola wajib ada, dan tiap pola
+    // harus dimulai di awal kata — "qr" cocok dengan "qris" tetapi tidak dengan
+    // "fiqri"; "sinjay" tetap cocok dengan "sinjay2".
+    buildSearchMatchers(searchTerm) {
+        const matchers = [];
+        const tokenPattern = /"([^"]*)"|(\S+)/g;
+        let match;
+        while ((match = tokenPattern.exec(searchTerm)) !== null) {
+            const term = (match[1] !== undefined ? match[1] : match[2])
+                .replace(/"/g, '')
+                .trim()
+                .replace(/\s+/g, ' ');
+            if (!term) continue;
+            const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const wordStart = /^[\p{L}\p{N}]/u.test(term) ? '(?:^|[^\\p{L}\\p{N}])' : '';
+            matchers.push(new RegExp(wordStart + escaped, 'u'));
+        }
+        return matchers;
     },
 
     async fetchInitialData(prefetch = null) {
@@ -684,6 +705,9 @@ const AppHandlers = {
             logoText: document.getElementById('setting-logo-text').value.trim(),
             logoDescription: document.getElementById('setting-logo-description').value.trim(),
             dataParsingSettings,
+            importProfiles: this.importSettings.getProfiles().length > 0
+                ? this.importSettings.getProfiles()
+                : AppImport.getProfiles(this.state.settings),
             backgroundUrl: document.getElementById('setting-bg-url').value.trim(),
             panelBlur: parseFloat(document.getElementById('setting-blur').value) || 0,
             isFlatTheme: document.getElementById('setting-flat-theme').checked, // BARU: Membaca nilai dari saklar
@@ -829,8 +853,8 @@ const AppHandlers = {
             return this.state.filterCache.get(cacheKey);
         }
 
-        const searchWords = searchTerm.split(' ').filter(w => w);
-        const searchableText = searchWords.length > 0 ? this.handlers.ensureSearchIndex() : null;
+        const searchMatchers = this.handlers.buildSearchMatchers(searchTerm);
+        const searchableText = searchMatchers.length > 0 ? this.handlers.ensureSearchIndex() : null;
         const startDate = startDateVal ? new Date(startDateVal) : null;
         if (startDate) startDate.setHours(0, 0, 0, 0);
         const endDate = endDateVal ? new Date(endDateVal) : null;
@@ -849,9 +873,9 @@ const AppHandlers = {
                 continue;
             }
 
-            if (searchWords.length > 0) {
+            if (searchMatchers.length > 0) {
                 const textToSearch = searchableText.get(row.id);
-                if (!textToSearch || !searchWords.every(word => textToSearch.includes(word))) {
+                if (!textToSearch || !searchMatchers.every(pattern => pattern.test(textToSearch))) {
                     continue;
                 }
             }
@@ -1592,6 +1616,7 @@ const AppHandlers = {
             { id: 'tanggal', label: 'Tanggal', sortable: true },
             { id: 'nama', label: 'Nama', sortable: true },
             { id: 'jumlah', label: 'Jumlah', class: 'text-right', sortable: true },
+            { id: 'admin_fee', label: 'Biaya Admin', class: 'text-right', sortable: true },
             { id: 'keterangan', label: 'Keterangan', sortable: true },
             { id: 'tipe_sheet', label: 'Tipe', sortable: true },
             { id: 'actions', label: 'Detail', class: 'text-center', sortable: false },
@@ -1642,6 +1667,7 @@ const AppHandlers = {
                 <div class="p-2 truncate">${new Date(row._ts).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short'})}</div>
                 <div class="p-2 truncate">${row.nama}</div>
                 <div class="p-2 text-right">${this.utils.formatCurrency(row.jumlah)}</div>
+                <div class="p-2 text-right">${this.utils.formatCurrency(this.utils.calculateAdminFee(row, this.state.settings))}</div>
                 <div class="p-2 truncate" title="${row.keterangan}">${row.keterangan}</div>
                 <div class="p-2 truncate">${row.tipe_sheet}</div>
                 <div class="p-2 text-center">
@@ -2075,7 +2101,7 @@ const AppHandlers = {
             };
             updates = selectedIds.map(id => ({
                 id,
-                updateObject
+                data: updateObject
             }));
             logDetails = {
                 action: 'change_name',
@@ -2108,22 +2134,13 @@ const AppHandlers = {
         document.getElementById('single-entry-form').onsubmit = this.handlers.handleSingleEntrySubmit;
         document.getElementById('download-template-btn').onclick = this.handlers.downloadInputTemplate;
         document.getElementById('cancel-staging-btn').onclick = this.handlers.resetInputView;
-        document.getElementById('upload-csv-btn').onclick = () => document.getElementById('csv-file-input').click();
-        document.getElementById('csv-file-input').onchange = this.handlers.handleCsvFileUpload;
-
-        const uploadBcaBtn = document.getElementById('upload-bca-excel-btn');
-        const bcaInput = document.getElementById('bca-excel-file-input');
-        if (uploadBcaBtn && bcaInput) {
-            uploadBcaBtn.onclick = () => bcaInput.click();
-            bcaInput.onchange = this.handlers.handleBcaExcelFileUpload;
-        }
-
-        const uploadQrisBtn = document.getElementById('upload-qris-settlement-btn');
-        const qrisInput = document.getElementById('qris-settlement-csv-input');
-        if (uploadQrisBtn && qrisInput) {
-            uploadQrisBtn.onclick = () => qrisInput.click();
-            qrisInput.onchange = this.handlers.handleQrisSettlementCsvUpload;
-        }
+        document.getElementById('upload-import-file-btn').onclick = () => document.getElementById('import-file-input').click();
+        document.getElementById('import-file-input').onchange = this.handlers.handleImportFileUpload;
+        const profileSelect = document.getElementById('import-profile-select');
+        profileSelect.innerHTML = '<option value="auto">Deteksi otomatis</option>' +
+            AppImport.getProfiles(this.state.settings)
+                .map(p => `<option value="${this.utils.escapeHtml(p.id)}">${this.utils.escapeHtml(p.name)} (${p.fileType === 'xlsx' ? 'Excel' : 'CSV'})</option>`)
+                .join('');
         
         document.getElementById('submit-valid-data-btn').onclick = this.handlers.submitStagedData;
         const deleteAllErrorsBtn = document.getElementById('delete-all-errors-btn');
@@ -2153,12 +2170,10 @@ const AppHandlers = {
             }
         });
 
-        const { pasteDelimiter, csvDelimiter } = this.state.settings.dataParsingSettings;
+        const { pasteDelimiter } = this.state.settings.dataParsingSettings;
         const pasteDelimiterName = pasteDelimiter === '\\t' ? 'Tab' : `"${pasteDelimiter}"`;
-        const csvDelimiterName = csvDelimiter === '\\t' ? 'Tab' : `"${csvDelimiter}"`;
 
         document.getElementById('paste-instructions').textContent = `1. Format Data: Paste dari spreadsheet (Pemisah: ${pasteDelimiterName}).\n2. Urutan Kolom: Tanggal, Nama, Jumlah, Keterangan`;
-        document.getElementById('csv-instructions').textContent = `Pilih file .csv yang menggunakan ${csvDelimiterName} sebagai pemisah. Format kolom harus sama dengan template.`;
         
         const undoBtn = document.getElementById('undo-last-import-btn');
         undoBtn.onclick = this.handlers.handleUndoLastImport;
@@ -2197,19 +2212,10 @@ const AppHandlers = {
         contentWrapper.classList.add('lg:grid-cols-1');
 
         document.getElementById('data-input-area').value = '';
-        const csvInput = document.getElementById('csv-file-input');
-        if(csvInput) csvInput.value = '';
-        document.getElementById('csv-file-name').textContent = '';
-
-        const bcaExcelInput = document.getElementById('bca-excel-file-input');
-        if (bcaExcelInput) bcaExcelInput.value = '';
-        const bcaExcelName = document.getElementById('bca-excel-file-name');
-        if (bcaExcelName) bcaExcelName.textContent = '';
-
-        const qrisSettlementInput = document.getElementById('qris-settlement-csv-input');
-        if (qrisSettlementInput) qrisSettlementInput.value = '';
-        const qrisSettlementName = document.getElementById('qris-settlement-file-name');
-        if (qrisSettlementName) qrisSettlementName.textContent = '';
+        const importInput = document.getElementById('import-file-input');
+        if (importInput) importInput.value = '';
+        const importName = document.getElementById('import-file-name');
+        if (importName) importName.textContent = '';
 
         this.state.stagingData = [];
         this.state.activeStagingFilter = 'all';
@@ -2219,144 +2225,93 @@ const AppHandlers = {
         this.ui.updateStagingStatsAndSubmitBtn();
     },
     
-    handleCsvFileUpload(event) {
+    // Opsi 2: satu pintu untuk semua file (CSV/Excel). Cara membaca kolom diambil
+    // dari Profil Format Import di Pengaturan; "Deteksi otomatis" memilih profil
+    // yang header-nya paling cocok dengan isi file.
+    handleImportFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        document.getElementById('csv-file-name').textContent = file.name;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const rawData = e.target.result;
-            const { csvDelimiter } = this.state.settings.dataParsingSettings;
-            this.handlers.processAndStageData(rawData, csvDelimiter);
-        };
-        reader.readAsText(file);
-    },
-
-    handleBcaExcelFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const nameLabel = document.getElementById('bca-excel-file-name');
+        const nameLabel = document.getElementById('import-file-name');
         if (nameLabel) nameLabel.textContent = file.name;
+        const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+        const fileType = isExcel ? 'xlsx' : 'csv';
 
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
-                this.ui.showLoader('Membaca & menggabungkan seluruh cabang Excel BCA...');
-                await ensureXLSX();
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-                
-                const bcaTrx = this.utils.parseMerchantBcaWorkbook(workbook);
-                if (!bcaTrx || bcaTrx.length === 0) {
-                    this.ui.showModal('Info', 'Tidak ditemukan transaksi valid di dalam file Excel ini.');
+                this.ui.showLoader('Membaca file...');
+                const tablesFor = await this.handlers.readImportTables(e.target.result, isExcel);
+                const profiles = AppImport.getProfiles(this.state.settings);
+                const selectedId = document.getElementById('import-profile-select').value;
+                const profile = selectedId === 'auto'
+                    ? AppImport.detectProfile(profiles, fileType, tablesFor)
+                    : profiles.find(p => p.id === selectedId);
+
+                if (!profile) {
+                    this.ui.showModal('Format Tidak Dikenali', 'Header file tidak cocok dengan profil format mana pun. Pilih format secara manual, atau tambahkan profil di Pengaturan > Data > Profil Format Import.');
+                    return;
+                }
+                if (profile.fileType !== fileType) {
+                    this.ui.showModal('Format Tidak Sesuai', `Profil "${profile.name}" untuk file ${profile.fileType === 'xlsx' ? 'Excel' : 'CSV'}, sedangkan file yang dipilih adalah ${isExcel ? 'Excel' : 'CSV'}.`);
                     return;
                 }
 
-                await this.handlers.stageParsedTransactions(bcaTrx, `Laporan Excel BCA (${workbook.SheetNames.length} Cabang)`);
-            } catch (err) {
-                this.ui.showModal('Error', `Gagal memproses file Excel BCA: ${err.message}`);
-            } finally {
-                this.ui.hideLoader();
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    },
-
-    handleQrisSettlementCsvUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const nameLabel = document.getElementById('qris-settlement-file-name');
-        if (nameLabel) nameLabel.textContent = file.name;
-
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-            try {
-                this.ui.showLoader('Membaca laporan settlement QRIS...');
-                const csvText = e.target.result;
-                const qrisTrx = this.utils.parseQrisSettlementCsv(csvText);
-                if (!qrisTrx || qrisTrx.length === 0) {
-                    this.ui.showModal('Info', 'Tidak ditemukan transaksi berstatus success di dalam file ini.');
-                    return;
-                }
-
-                await this.handlers.stageParsedTransactions(qrisTrx, `Laporan Settlement QRIS (${qrisTrx.length} transaksi)`);
-            } catch (err) {
-                this.ui.showModal('Error', `Gagal memproses file settlement QRIS: ${err.message}`);
-            } finally {
-                this.ui.hideLoader();
-            }
-        };
-        reader.readAsText(file);
-    },
-
-    async stageParsedTransactions(rawItems, sourceName = 'Data Terimport') {
-        const {
-            exceptionKeywords = [],
-            nameConsolidation = {}
-        } = this.state.settings.dataParsingSettings || {};
-
-        const processedHashes = new Set();
-        const stagedItems = [];
-
-        rawItems.forEach((raw, index) => {
-            const item = {
-                originalIndex: index,
-                rawInput: `${raw.tanggal} | ${raw.nama} | ${raw.jumlah} | ${raw.keterangan}`,
-                status: 'invalid',
-                errorReason: '',
-                data: null
-            };
-
-            try {
-                const lowerKet = (raw.keterangan || '').toLowerCase();
-                if (exceptionKeywords.some(kw => lowerKet.includes(kw.toLowerCase()))) {
-                    return;
-                }
-
-                let nama = raw.nama;
-                const normalizedName = this.utils.normalizeName(nama);
-                nama = nameConsolidation[normalizedName.toUpperCase()] || normalizedName;
-
-                const tanggalStr = typeof raw.tanggal === 'string' ? raw.tanggal : (new Date(raw.tanggal)).toISOString();
-                const datePart = tanggalStr.split('T')[0];
-                const rowHash = `${datePart}|${nama}|${raw.jumlah}|${raw.keterangan}`;
-
-                if (processedHashes.has(rowHash)) {
-                    item.status = 'duplicate_input';
-                    item.errorReason = 'Duplikat di input';
-                    item.data = {
-                        tanggal: tanggalStr,
-                        nama: nama,
-                        jumlah: raw.jumlah,
-                        keterangan: raw.keterangan,
-                        tipe_sheet: raw.tipe_sheet || 'MANUAL',
-                        hash: rowHash
-                    };
-                    stagedItems.push(item);
-                    return;
-                }
-                processedHashes.add(rowHash);
-
-                item.status = 'valid';
-                item.errorReason = '';
-                item.data = {
-                    tanggal: tanggalStr,
-                    nama: nama,
-                    jumlah: raw.jumlah,
-                    keterangan: raw.keterangan,
-                    tipe_sheet: raw.tipe_sheet || 'MANUAL',
-                    hash: rowHash
+                const helpers = {
+                    parseDateAuto: str => this.utils.parseDateWithPriority(str, this.state.settings.dataParsingSettings.dateFormats)
                 };
-                stagedItems.push(item);
+                const { items } = AppImport.parseTables(tablesFor(profile), profile, this.state.settings, helpers);
+                if (nameLabel) nameLabel.textContent = `${file.name} — format: ${profile.name}`;
+
+                if (items.length === 0) {
+                    this.ui.showModal('Info', `Tidak ditemukan transaksi di file ini dengan format "${profile.name}".`);
+                    return;
+                }
+                await this.handlers.stageImportedItems(items);
             } catch (err) {
-                item.errorReason = `Error: ${err.message}`;
-                stagedItems.push(item);
+                this.ui.showModal('Error', `Gagal memproses file: ${err.message}`);
+            } finally {
+                this.ui.hideLoader();
             }
-        });
+        };
+        if (isExcel) reader.readAsArrayBuffer(file);
+        else reader.readAsText(file);
+    },
+
+    // Mengembalikan fungsi profile -> tabel. Excel dibaca sekali (semua sheet);
+    // CSV dibaca ulang per pemisah karena tiap profil bisa memakai pemisah berbeda.
+    async readImportTables(content, isExcel) {
+        if (isExcel) {
+            await ensureXLSX();
+            const workbook = XLSX.read(new Uint8Array(content), { type: 'array' });
+            const tables = workbook.SheetNames.map(name => ({
+                name,
+                rows: XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '' })
+            }));
+            return () => tables;
+        }
+        const byDelimiter = new Map();
+        return profile => {
+            if (!byDelimiter.has(profile.delimiter)) {
+                byDelimiter.set(profile.delimiter, [{ name: '', rows: AppImport.parseDelimited(content, profile.delimiter) }]);
+            }
+            return byDelimiter.get(profile.delimiter);
+        };
+    },
+
+    async stageImportedItems(parsedItems) {
+        const { items } = AppImport.finalizeItems(parsedItems, this.state.settings);
+        const stagedItems = items.map(item => item.status === 'error'
+            ? {
+                ...item,
+                data: {
+                    tanggal: item.data.tanggal || '',
+                    nama: item.data.namaOutlet || item.data.nama || '',
+                    jumlah: item.data.jumlah || '',
+                    keterangan: item.data.keterangan || item.data.ref || ''
+                }
+            }
+            : item);
 
         if (this.state.virtualScrollInstances.staging) {
             this.state.virtualScrollInstances.staging.destroy();
@@ -2549,7 +2504,7 @@ const AppHandlers = {
         }
 
         const processedItems = [];
-        const processedHashes = new Set();
+        const processedHashes = new Map();
         const nmidMapping = this.state.settings.nmidMapping || {};
         const nameConsolidation = this.state.settings.nameConsolidation || {};
         const exceptionKeywords = this.state.settings.exceptionKeywords || [];
@@ -2626,7 +2581,7 @@ const AppHandlers = {
                 const jumlah = parseFloat(amountMatch[1]);
 
                 const keterangan = `TARTUN QR RRN:${rrn} | ${bankName} a.n. ${payerName}`;
-                if (exceptionKeywords.some(kw => keterangan.toLowerCase().includes(kw.toLowerCase()))) {
+                if (AppImport.matchesKeyword(keterangan, exceptionKeywords)) {
                     return;
                 }
 
@@ -2636,14 +2591,14 @@ const AppHandlers = {
 
                 // Generate Row Hash (formatted date datepart + name + amount + keterangan)
                 const rowHash = `${dateObj.toISOString().split('T')[0]}|${consolidatedName}|${jumlah}|${keterangan}`;
-                
-                if (processedHashes.has(rowHash)) {
+                const dupKey = AppImport.duplicateKey({ tanggal: dateObj.toISOString(), nama: consolidatedName, jumlah, keterangan });
+                if (processedHashes.has(dupKey)) {
                     item.status = 'duplicate_input';
-                    item.errorReason = 'Duplikat di input';
+                    item.errorReason = AppImport.duplicateInputReason(keterangan, processedHashes.get(dupKey), consolidatedName);
                     processedItems.push(item);
                     return;
                 }
-                processedHashes.add(rowHash);
+                processedHashes.set(dupKey, consolidatedName);
 
                 item.status = 'valid';
                 item.data = {
@@ -2710,7 +2665,7 @@ const AppHandlers = {
         } = dataParsingSettings;
 
         const processedItems = [];
-        const processedHashes = new Set();
+        const processedHashes = new Map();
 
         for (let i = 0; i < lines.length; i++) {
             const line = lines[i];
@@ -2741,7 +2696,7 @@ const AppHandlers = {
                 };
 
                 const lowerKeterangan = (rowObject.keterangan || '').toLowerCase();
-                if (exceptionKeywords.some(kw => lowerKeterangan.includes(kw.toLowerCase()))) {
+                if (AppImport.matchesKeyword(rowObject.keterangan, exceptionKeywords)) {
                     continue;
                 }
 
@@ -2775,13 +2730,14 @@ const AppHandlers = {
                 }
 
                 const rowHash = `${tanggal.toISOString().split('T')[0]}|${nama}|${jumlah}|${rowObject.keterangan}`;
-                if (processedHashes.has(rowHash)) {
+                const dupKey = AppImport.duplicateKey({ tanggal: tanggal.toISOString(), nama, jumlah, keterangan: rowObject.keterangan });
+                if (processedHashes.has(dupKey)) {
                     item.status = 'duplicate_input';
-                    item.errorReason = 'Duplikat di input';
+                    item.errorReason = AppImport.duplicateInputReason(rowObject.keterangan, processedHashes.get(dupKey), nama);
                     processedItems.push(item);
                     continue;
                 }
-                processedHashes.add(rowHash);
+                processedHashes.set(dupKey, nama);
 
                 item.status = 'valid';
                 item.errorReason = '';
@@ -2812,25 +2768,33 @@ const AppHandlers = {
             keterangan: item.data.keterangan
         }));
 
-        let duplicateHashes = [];
+        // Gagal cek ke server = gagal validasi. Jangan diam-diam menganggap
+        // semua baris baru, karena itu bisa memasukkan data ganda.
+        let duplicateHashes = new Set();
+        let details = {};
         if (itemsToCheck.length > 0) {
             try {
                 const res = await this.api.req('/transactions/check-duplicates', {
                     method: 'POST',
                     body: JSON.stringify({ items: itemsToCheck })
                 });
-                duplicateHashes = res.duplicates || [];
+                duplicateHashes = new Set(res.duplicates || []);
+                details = res.details || {};
             } catch (e) {
-                console.error("Gagal mengecek duplikat di DB:", e);
+                throw new Error(`Pengecekan duplikat ke database gagal (${e.message}). Coba lagi.`);
             }
         }
 
+        const describe = hash => {
+            const d = details[hash];
+            if (!d) return 'Duplikat di Database';
+            const tgl = d.tanggal ? new Date(d.tanggal).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+            return `Duplikat: RRN ${d.ref} sudah ada di ${d.nama}${tgl ? ` (${tgl})` : ''}`;
+        };
+
         const finalStagedData = parsedItems.map(item => {
-            if (item.status === 'valid') {
-                if (duplicateHashes.includes(item.data.hash)) {
-                    item.status = 'duplicate_db';
-                    item.errorReason = 'Duplikat di Database';
-                }
+            if (item.status === 'valid' && duplicateHashes.has(item.data.hash)) {
+                return { ...item, status: 'duplicate_db', errorReason: describe(item.data.hash) };
             }
             return item;
         });
@@ -2859,7 +2823,9 @@ const AppHandlers = {
         this.ui.showLoader(`Mengirim ${validDataToSubmit.length} data baru...`);
 
         try {
-            await this.api.addDataBatch(validDataToSubmit);
+            const result = await this.api.addDataBatch(validDataToSubmit);
+            const inserted = result?.inserted ?? validDataToSubmit.length;
+            const skipped = result?.skipped_duplicates || 0;
             this.state.lastImportBatchId = batchId;
             localStorage.setItem('fkof_lastImportBatchId', batchId);
 
@@ -2869,7 +2835,8 @@ const AppHandlers = {
             });
 
             this.ui.hideLoader();
-            this.ui.showModal('Sukses', `${validDataToSubmit.length} baris data baru telah ditambahkan.`, '', {
+            const skippedNote = skipped > 0 ? ` ${skipped} baris dilewati karena RRN/REF-nya sudah tersimpan.` : '';
+            this.ui.showModal('Sukses', `${inserted} baris data baru telah ditambahkan.${skippedNote}`, '', {
                 onClose: () => {
                     this.handlers.resetInputView();
                     this.handlers.handleFullRefresh();
@@ -3566,6 +3533,7 @@ const AppHandlers = {
 
     setupSettingsView() {
         const s = this.state.settings;
+        this.apiKeys.render();
 
         document.getElementById('setting-logo-text').value = s.logoText || '';
         document.getElementById('setting-logo-description').value = s.logoDescription || '';
@@ -3645,6 +3613,8 @@ const AppHandlers = {
         document.getElementById('setting-announcement-font-weight').value = announcementStyle.fontWeight;
         document.getElementById('setting-announcement-color').value = announcementStyle.color;
         document.getElementById('setting-announcement-animation').value = announcementStyle.animation;
+
+        this.importSettings.render();
 
         const parsingSettings = (s.dataParsingSettings && typeof s.dataParsingSettings === 'object') ? s.dataParsingSettings : (this.state.defaultConfig.dataParsingSettings || {});
         
@@ -3829,6 +3799,11 @@ const AppHandlers = {
         };
 
         document.getElementById('save-settings-btn').onclick = () => {
+            const importErrors = this.importSettings.validateAll();
+            if (importErrors.length > 0) {
+                this.ui.showModal('Profil Format Import Belum Valid', importErrors.join('\n'));
+                return;
+            }
             this.handlers.collectSettingsFromUI();
             this.settings.saveGlobal();
         };
@@ -4300,7 +4275,7 @@ Laporan: CS, bantu cek data tartun ini
                 return;
             }
             updateObject = { nama: newName };
-            updates = selectedIds.map(id => ({ id, updateObject }));
+            updates = selectedIds.map(id => ({ id, data: updateObject }));
             logDetails = { action: 'change_name_modal', newName, count: selectedIds.length, ids: selectedIds };
         }
 

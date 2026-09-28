@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { aggregateByOutlet, calculateAdminFee } = require('../utils/adminCalc2');
+const { aggregateByOutlet, rowAdminFee } = require('../utils/adminCalc2');
 
 router.get('/', async (req, res) => {
   try {
@@ -16,7 +16,7 @@ router.get('/', async (req, res) => {
       whereClause = 'WHERE tanggal >= date("now", "start of month")';
     }
 
-    const data = await db.allAsync(`SELECT nama, jumlah, keterangan, tipe_sheet FROM transactions ${whereClause}`, params);
+    const data = await db.allAsync(`SELECT nama, jumlah, keterangan, tipe_sheet, admin_fee FROM transactions ${whereClause}`, params);
     
     const settingsRow = await db.getAsync('SELECT settings FROM app_settings WHERE id = 1');
     const settings = JSON.parse(settingsRow.settings);
@@ -27,7 +27,7 @@ router.get('/', async (req, res) => {
     let tiketFee = 0, tiketTx = 0;
     
     data.forEach(row => {
-      const { fee, tiketUnik } = calculateAdminFee(row, settings.adminRules);
+      const fee = rowAdminFee(row);
       if (row.tipe_sheet === 'TIKET') {
         tiketFee += fee; // fee already includes tiketUnik
         tiketTx++;

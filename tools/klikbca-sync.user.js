@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Tartun V2 - KlikBCA QRIS Master Sync
 // @namespace    https://tartun.app/
-// @version      4.0.0
+// @version      4.0.1
 // @description  Sistem otomatisasi penarikan mutasi QRIS KlikBCA ke Tartun V2: Real-time Auto-Sync, Verified Crawler, dan Instant One-Click Import
 // @author       Tartun V2 AI
 // @match        https://qr.klikbca.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        GM_registerMenuCommand
 // @connect      *
 // @run-at       document-end
 // ==/UserScript==
@@ -19,8 +20,10 @@
     let config = {
         tartunUrl: GM_getValue('tartun_url', 'http://100.103.255.45:3000'),
         tartunToken: GM_getValue('tartun_token', ''),
-        tartunEmail: GM_getValue('tartun_email', 'firz411@gmail.com'),
-        tartunPassword: GM_getValue('tartun_password', 'FkOf2025'),
+        // Kredensial tidak lagi ditulis di file ini; diminta sekali lalu disimpan
+        // di penyimpanan lokal Tampermonkey (menu: "Atur akun Tartun").
+        tartunEmail: GM_getValue('tartun_email', ''),
+        tartunPassword: GM_getValue('tartun_password', ''),
         autoSyncRealtime: GM_getValue('tartun_auto_realtime', true) // Default: Otomatis kirim saat outlet dibuka di layar
     };
 
@@ -131,7 +134,31 @@
         });
     }
 
+    function askCredentials() {
+        const url = prompt('URL server Tartun V2:', config.tartunUrl || 'http://');
+        if (url === null) return false;
+        const email = prompt('Email akun Tartun V2 untuk sinkronisasi:', config.tartunEmail || '');
+        if (email === null) return false;
+        const password = prompt('Password akun tersebut:', '');
+        if (password === null) return false;
+        config.tartunUrl = url.trim();
+        config.tartunEmail = email.trim();
+        config.tartunPassword = password;
+        config.tartunToken = '';
+        GM_setValue('tartun_url', config.tartunUrl);
+        GM_setValue('tartun_email', config.tartunEmail);
+        GM_setValue('tartun_password', config.tartunPassword);
+        GM_setValue('tartun_token', '');
+        return Boolean(config.tartunUrl && config.tartunEmail && config.tartunPassword);
+    }
+
+    GM_registerMenuCommand('Atur akun Tartun', askCredentials);
+
     async function loginToTartun() {
+        if ((!config.tartunEmail || !config.tartunPassword) && !askCredentials()) {
+            logTerminal('⚠️ Akun Tartun belum diatur. Buka menu Tampermonkey > "Atur akun Tartun".', 'error');
+            return false;
+        }
         return new Promise((resolve) => {
             GM_xmlhttpRequest({
                 method: 'POST',

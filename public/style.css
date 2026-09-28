@@ -284,7 +284,7 @@ body {
 }
 
 .analysis-grid-layout {
-    grid-template-columns: 48px minmax(150px, 1.5fr) minmax(180px, 2fr) minmax(120px, 1fr) minmax(200px, 3fr) minmax(80px, 1fr) 80px;
+    grid-template-columns: 48px minmax(150px, 1.5fr) minmax(180px, 2fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(200px, 3fr) minmax(80px, 1fr) 80px;
 }
 
 .user-management-grid-layout {
@@ -784,11 +784,11 @@ body {
 }
 
 .layout-can-edit {
-    grid-template-columns: 48px minmax(150px, 1.5fr) minmax(150px, 1.5fr) minmax(120px, 1fr) minmax(200px, 3fr) 100px;
+    grid-template-columns: 48px minmax(150px, 1.5fr) minmax(150px, 1.5fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(200px, 3fr) 100px;
 }
 
 .layout-cannot-edit {
-    grid-template-columns: minmax(150px, 1.5fr) minmax(150px, 1.5fr) minmax(120px, 1fr) minmax(200px, 3fr) 100px;
+    grid-template-columns: minmax(150px, 1.5fr) minmax(150px, 1.5fr) minmax(120px, 1fr) minmax(110px, 1fr) minmax(200px, 3fr) 100px;
 }
 
 #summary-export-toggle,

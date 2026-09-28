@@ -3,10 +3,23 @@ const router = express.Router();
 const db = require('../db');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const crypto = require('crypto');
+const { compileAdminRules, computeAdminFee } = require('../utils/adminFee');
+const { extractReference } = require('../utils/transactionRef');
+const { amountKey, findExistingByReference, findExistingByExactKey } = require('../utils/duplicateLookup');
 
 // Kolom yang benar-benar dipakai frontend. Sengaja tidak SELECT * agar
 // batch_id (UUID 36 char) & row_hash tidak ikut terkirim -> payload jauh lebih kecil.
-const LIST_COLUMNS = 'id, tanggal, nama, jumlah, keterangan, tipe_sheet, created_at';
+const LIST_COLUMNS = 'id, tanggal, nama, jumlah, keterangan, tipe_sheet, admin_fee, created_at';
+
+// Kolom yang boleh diubah lewat /bulk-update (nama kolom masuk ke SQL, wajib whitelist).
+const EDITABLE_COLUMNS = ['tanggal', 'nama', 'jumlah', 'keterangan', 'tipe_sheet'];
+// Perubahan pada kolom ini mengubah biaya admin, jadi admin_fee dihitung ulang.
+const FEE_INPUT_COLUMNS = ['jumlah', 'keterangan', 'tipe_sheet'];
+
+async function loadCompiledAdminRules() {
+  const row = await db.getAsync('SELECT settings FROM app_settings WHERE id = 1');
+  return compileAdminRules(row ? JSON.parse(row.settings).adminRules : []);
+}
 
 router.get('/', async (req, res) => {
   try {
@@ -69,26 +82,34 @@ router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), a
   const trxBatchId = batch_id || crypto.randomUUID();
 
   try {
-    await db.runAsync('BEGIN TRANSACTION');
-    const chunkSize = 50;
-    for (let i = 0; i < rows.length; i += chunkSize) {
-      const chunk = rows.slice(i, i + chunkSize);
-      const valuePlaceholders = chunk.map(() => '(?, ?, ?, ?, ?, ?)').join(', ');
-      const params = [];
-      for (const r of chunk) {
-        params.push(r.tanggal, r.nama, r.jumlah, r.keterangan, r.tipe_sheet, trxBatchId);
+    // Biaya admin dihitung di server dari aturan di settings saat ini;
+    // nilai admin_fee dari klien (bila ada) diabaikan.
+    const compiledRules = await loadCompiledAdminRules();
+    const inserted = await db.withTransaction(async () => {
+      let insertedCount = 0;
+      const chunkSize = 50;
+      for (let i = 0; i < rows.length; i += chunkSize) {
+        const chunk = rows.slice(i, i + chunkSize);
+        const valuePlaceholders = chunk.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ');
+        const params = [];
+        for (const r of chunk) {
+          params.push(r.tanggal, r.nama, r.jumlah, r.keterangan, r.tipe_sheet, trxBatchId,
+            computeAdminFee(r, compiledRules), extractReference(r.keterangan));
+        }
+        // OR IGNORE: transaksi ber-RRN yang sudah tersimpan (indeks unik ref_code+jumlah)
+        // dilewati tanpa menggagalkan seluruh batch.
+        const result = await db.runAsync(`INSERT OR IGNORE INTO transactions (tanggal, nama, jumlah, keterangan, tipe_sheet, batch_id, admin_fee, ref_code) VALUES ${valuePlaceholders}`, params);
+        insertedCount += result.changes;
       }
-      await db.runAsync(`INSERT INTO transactions (tanggal, nama, jumlah, keterangan, tipe_sheet, batch_id) VALUES ${valuePlaceholders}`, params);
-    }
-    await db.runAsync('COMMIT');
+      return insertedCount;
+    });
 
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-      req.user.email, req.user.role, 'SUBMIT_DATA_SUCCESS', JSON.stringify({ batch_id: trxBatchId, count: rows.length })
+      req.user.email, req.user.role, 'SUBMIT_DATA_SUCCESS', JSON.stringify({ batch_id: trxBatchId, count: inserted, skipped_duplicates: rows.length - inserted })
     ]);
 
-    res.json({ success: true, batch_id: trxBatchId, inserted: rows.length });
+    res.json({ success: true, batch_id: trxBatchId, inserted, skipped_duplicates: rows.length - inserted });
   } catch (error) {
-    try { await db.runAsync('ROLLBACK'); } catch (_) {}
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
       req.user.email, req.user.role, 'SUBMIT_DATA_FAIL', JSON.stringify({ error: error.message })
     ]);
@@ -96,36 +117,40 @@ router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), a
   }
 });
 
+// Respon: duplicates = daftar hash yang sudah ada di DB; details[hash] menjelaskan
+// baris lama yang cocok (dipakai frontend untuk alasan duplikat).
 router.post('/check-duplicates', authenticateToken, requireRole('Master', 'Admin', 'OED'), async (req, res) => {
   const { items } = req.body;
   if (!items || !Array.isArray(items) || items.length === 0) {
-    return res.json({ duplicates: [] });
+    return res.json({ duplicates: [], details: {} });
   }
   try {
-    const dates = [...new Set(items.map(i => i.tanggal ? i.tanggal.split('T')[0] : ''))].filter(Boolean);
-    if (dates.length === 0) {
-      return res.json({ duplicates: [] });
-    }
+    const withRef = [];
+    const withoutRef = [];
+    items.forEach(item => {
+      const ref = extractReference(item.keterangan);
+      (ref ? withRef : withoutRef).push({ ...item, ref });
+    });
 
-    const placeholders = dates.map(() => '?').join(',');
-    const existing = await db.allAsync(
-      `SELECT date(tanggal) as d, nama, jumlah, keterangan FROM transactions WHERE date(tanggal) IN (${placeholders})`,
-      dates
-    );
-
-    const existingSet = new Set(
-      existing.map(r => `${r.d}|${r.nama}|${Number(r.jumlah).toFixed(2)}|${r.keterangan || ''}`)
-    );
+    const byReference = await findExistingByReference(db, [...new Set(withRef.map(i => i.ref))]);
+    const byExactKey = await findExistingByExactKey(db, withoutRef);
 
     const duplicates = [];
-    for (const item of items) {
-      const datePart = item.tanggal ? item.tanggal.split('T')[0] : '';
-      const key = `${datePart}|${item.nama}|${Number(item.jumlah).toFixed(2)}|${item.keterangan || ''}`;
-      if (existingSet.has(key)) {
+    const details = {};
+    withRef.forEach(item => {
+      const existing = byReference.get(`${item.ref}|${amountKey(item.jumlah)}`);
+      if (existing) {
+        duplicates.push(item.hash);
+        details[item.hash] = { ref: item.ref, nama: existing.nama, tanggal: existing.tanggal };
+      }
+    });
+    withoutRef.forEach(item => {
+      const datePart = String(item.tanggal || '').split('T')[0];
+      if (byExactKey.has(`${datePart}|${item.nama}|${amountKey(item.jumlah)}|${item.keterangan || ''}`)) {
         duplicates.push(item.hash);
       }
-    }
-    res.json({ duplicates });
+    });
+    res.json({ duplicates, details });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -177,31 +202,61 @@ router.post('/delete-bulk', authenticateToken, requireRole('Master', 'Admin'), a
   }
 });
 
-router.put('/bulk-update', authenticateToken, requireRole('Master', 'Admin'), (req, res) => {
+function validateUpdates(updates) {
+  for (const item of updates) {
+    if (!item || !Number.isInteger(Number(item.id)) || !item.data || typeof item.data !== 'object') {
+      return 'Format update tidak valid';
+    }
+    const keys = Object.keys(item.data);
+    if (keys.length === 0 || keys.some(k => !EDITABLE_COLUMNS.includes(k))) {
+      return 'Kolom yang diubah tidak diizinkan';
+    }
+    if ('jumlah' in item.data && !Number.isFinite(Number(item.data.jumlah))) {
+      return 'Jumlah harus berupa angka';
+    }
+  }
+  return null;
+}
+
+router.put('/bulk-update', authenticateToken, requireRole('Master', 'Admin'), async (req, res) => {
   const { updates } = req.body;
   if (!updates || !Array.isArray(updates) || updates.length === 0) {
-    return res.json({ success: true });
+    return res.json({ success: true, count: 0 });
+  }
+  const validationError = validateUpdates(updates);
+  if (validationError) {
+    return res.status(400).json({ error: validationError });
   }
 
-  db.serialize(() => {
-    db.run('BEGIN TRANSACTION');
-    for (const item of updates) {
-      const keys = Object.keys(item.data);
-      const values = Object.values(item.data);
-      const setStr = keys.map(k => `${k} = ?`).join(', ');
-      db.run(`UPDATE transactions SET ${setStr} WHERE id = ?`, [...values, item.id]);
-    }
-    db.run('COMMIT', (err) => {
-      if (err) {
-        db.run('ROLLBACK');
-        return res.status(500).json({ error: err.message });
+  try {
+    const compiledRules = await loadCompiledAdminRules();
+    const count = await db.withTransaction(async () => {
+      let changed = 0;
+      for (const item of updates) {
+        const keys = Object.keys(item.data);
+        const setStr = keys.map(k => `${k} = ?`).join(', ');
+        const result = await db.runAsync(`UPDATE transactions SET ${setStr} WHERE id = ?`, [...Object.values(item.data), item.id]);
+        changed += result.changes;
+
+        if (result.changes > 0 && keys.some(k => FEE_INPUT_COLUMNS.includes(k))) {
+          const row = await db.getAsync('SELECT jumlah, keterangan, tipe_sheet FROM transactions WHERE id = ?', [item.id]);
+          await db.runAsync('UPDATE transactions SET admin_fee = ?, ref_code = ? WHERE id = ?',
+            [computeAdminFee(row, compiledRules), extractReference(row.keterangan), item.id]);
+        }
       }
-      db.run('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
-        req.user.email, req.user.role, 'BULK_UPDATE', JSON.stringify({ count: updates.length })
-      ]);
-      res.json({ success: true });
+      return changed;
     });
-  });
+
+    await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
+      req.user.email, req.user.role, 'BULK_UPDATE', JSON.stringify({ count })
+    ]);
+    res.json({ success: true, count });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT' && /ref_code/.test(error.message)) {
+      return res.status(409).json({ error: 'RRN/REF dengan jumlah yang sama sudah dipakai transaksi lain.' });
+    }
+    res.status(500).json({ error: error.message });
+  }
 });
 
 module.exports = router;

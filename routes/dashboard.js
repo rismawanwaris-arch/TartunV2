@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { aggregateByOutlet, calculateAdminFee } = require('../utils/adminCalc2');
+const { aggregateByOutlet, rowAdminFee } = require('../utils/adminCalc2');
 
 router.get('/kpi', async (req, res) => {
   try {
@@ -26,10 +26,10 @@ router.get('/kpi', async (req, res) => {
     
     // Total admin kemarin & hari ini
     let yesterdayAdmin = 0;
-    yesterdayData.forEach(row => { yesterdayAdmin += calculateAdminFee(row, settings.adminRules).fee; });
+    yesterdayData.forEach(row => { yesterdayAdmin += rowAdminFee(row); });
     
     let todayAdmin = 0;
-    todayData.forEach(row => { todayAdmin += calculateAdminFee(row, settings.adminRules).fee; });
+    todayData.forEach(row => { todayAdmin += rowAdminFee(row); });
 
     // Trend Biaya Admin 7 hari terakhir (1 single fast query)
     const sevenDaysData = await db.allAsync(`SELECT * FROM transactions WHERE tanggal >= date('now', '-7 day', 'localtime')`);
@@ -40,7 +40,7 @@ router.get('/kpi', async (req, res) => {
       const dateStr = d.toISOString().split('T')[0];
       const dayData = sevenDaysData.filter(r => (r.tanggal || '').startsWith(dateStr));
       let feeSum = 0;
-      dayData.forEach(r => { feeSum += calculateAdminFee(r, settings.adminRules).fee; });
+      dayData.forEach(r => { feeSum += rowAdminFee(r); });
       
       const label = d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
       trendData.push({ label, value: feeSum });

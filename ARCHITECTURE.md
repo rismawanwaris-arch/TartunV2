@@ -416,12 +416,37 @@ Menaikkan versi aset frontend: ubah `?v=x.y.z` pada tag `<script>`/`<link>` di
 
 ## 8. Integrasi KlikBCA
 
-`public/tools/klikbca-sync.user.js` — userscript Tampermonkey v4.0.0,
+`tools/klikbca-sync.user.js` — userscript Tampermonkey v4.0.1 (di luar `public/`,
+tidak disajikan server; pasang manual di Tampermonkey),
 `@match https://qr.klikbca.com/*`. Fungsi: scrape mutasi QRIS dari layar KlikBCA,
 login ke API Tartun (`POST /api/auth/login`), lalu kirim transaksi
-(`POST /api/transactions/bulk`). URL/kredensial Tartun disimpan via `GM_setValue`
-(default menunjuk IP Tailscale + kredensial Master — ganti untuk instalasi lain).
+(`POST /api/transactions/bulk`). URL/kredensial Tartun diminta sekali lewat prompt
+(menu Tampermonkey "Atur akun Tartun") lalu disimpan via `GM_setValue`.
 NMID di data diterjemahkan ke nama outlet lewat `settings.nmidMapping`.
+
+---
+
+## 8a. API Ingest Transaksi QR
+
+`POST /api/v1/ingest/qr` — dipakai sistem lain (payment gateway, skrip, aplikasi)
+untuk mengirim transaksi QR langsung ke DB. Dikelola Master di
+Pengaturan > Sistem > "API Ingest Transaksi QR".
+
+- **Autentikasi:** header `X-API-Key: tk_...`. Key dibuat/dicabut lewat
+  `GET|POST|DELETE /api/api-keys` (khusus Master); tabel `api_keys` hanya menyimpan
+  hash SHA-256 + prefix, key asli ditampilkan sekali. Key tidak berlaku untuk API lain.
+- **Body:** `{ "transactions": [{ ref, amount, paid_at, outlet_code|outlet_name, method?, payer?, status? }] }`,
+  maks 500 item. `paid_at` ISO 8601; tanpa zona dianggap WIB (+07:00). Hanya `status: success`.
+- **Pengolahan** (`utils/qrIngest.js`): aturan sama dengan upload file — pemetaan NMID,
+  konsolidasi nama, template keterangan `TARTUN QR REF:{ref} ...`, kata pengecualian,
+  biaya admin (`admin_fee`), `ref_code`.
+- **Idempoten:** indeks unik `uniq_transactions_ref_amount (ref_code, jumlah)` + `INSERT OR IGNORE`;
+  kirim ulang / request paralel tidak menggandakan data.
+- **Respons:** `{ success, data: { batch_id, received, inserted, duplicates, rejected, results[] } }`,
+  status per item `inserted | duplicate | rejected` + alasan. `batch_id` berawalan `api-`,
+  tercatat di `logs` (action `API_INGEST`, actor `api:<nama key>`).
+- **Batas:** 120 request/menit per IP. Transaksi tulis memakai `db.withTransaction`
+  (antrian) karena semua request berbagi satu koneksi SQLite.
 
 ---
 
@@ -431,7 +456,6 @@ NMID di data diterjemahkan ke nama outlet lewat `settings.nmidMapping`.
 |---|---|---|
 | Kredensial Master hardcoded | `db.js` | `firz411@gmail.com` / `FkOf2025` di-seed; ganti setelah deploy |
 | `JWT_SECRET` fallback hardcoded | `middleware/auth.js` | Set env var di produksi |
-| Kredensial di userscript | `klikbca-sync.user.js` | Email/password Master tertulis sebagai default `GM_getValue` |
 | Rate limit longgar | `server.js` | 5000/15 mnt global; login tidak punya limiter ketat sendiri (kontras dgn arahan `.agents/rules/backend-expert.md`) |
 | `helmet` CSP dimatikan | `server.js` | Karena SPA + CDN + inline style |
 | `journal_mode = MEMORY` | `db.js` | Risiko kehilangan data pada crash proses |
