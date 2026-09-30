@@ -1,10 +1,12 @@
 # Tartun V2 — Blueprint Arsitektur
 
 > Dokumen referensi arsitektur untuk **Tartun V2 – Laporan Tarik Tunai Outlet**.
-> Ditujukan untuk developer/maintainer. Untuk panduan operasional agent lihat `CLAUDE.md`
-> dan `.agents/`. Untuk spesifikasi rebuild dari nol lihat `rebuild_prompt.md`.
+> Ditujukan untuk developer/maintainer. Spesifikasi rinci **per fitur** (alur, aturan,
+> edge case, tes, backlog) ada di `FEATURE-BLUEPRINT.md`. Optimasi load di
+> `PERFORMANCE-BLUEPRINT.md`; sistem upload portabel di `UPLOAD-BLUEPRINT.md`. Panduan agent di `.agents/`. `rebuild_prompt.md` adalah
+> spesifikasi historis versi Supabase dan sudah tidak sesuai kode.
 
-Terakhir diperbarui: 2026-08-31 · Basis kode: branch `main`
+Terakhir diperbarui: 2026-09-29 · Basis kode: branch `main`
 
 ---
 
@@ -12,8 +14,8 @@ Terakhir diperbarui: 2026-08-31 · Basis kode: branch `main`
 
 Tartun V2 adalah dashboard pelaporan transaksi **tarik tunai** untuk jaringan outlet
 pulsa/PPOB di Bandung. Aplikasi menghitung **biaya admin** dan **komisi outlet/CS**
-secara otomatis dari data mutasi mentah (paste spreadsheet, upload CSV, laporan Excel
-merchant BCA, settlement QRIS, atau userscript KlikBCA), menampilkan ringkasan &
+secara otomatis dari data mutasi mentah (paste spreadsheet, upload file CSV/Excel
+berbasis profil format, userscript KlikBCA, atau API ingest), menampilkan ringkasan &
 grafik, dan menyediakan alat audit reversal.
 
 Karakteristik kunci:
@@ -40,19 +42,21 @@ flowchart LR
 
     subgraph Server["Node.js — server.js (port 3000)"]
         MW[Middleware:\ncompression · helmet · rate-limit · cors]
-        RT[7 Router /api/*]
+        RT[9 Router /api/*]
         ST[Static /public + /uploads\n+ SPA fallback]
-        UTIL[utils/adminCalc2.js\nutils/inputParser.js]
+        UTIL[utils/: adminFee · transactionRef\nduplicateLookup · qrIngest · apiKeys\nadminCalc2 + public/js/importEngine.js]
     end
 
     DB[(SQLite\ndata/tartun.db)]
-    KBCA[Userscript Tampermonkey\nklikbca-sync.user.js\n@match qr.klikbca.com]
+    KBCA[Userscript Tampermonkey\ntools/klikbca-sync.user.js\n@match qr.klikbca.com]
+    EXT[Sistem lain\n(gateway / skrip)]
 
     UI -->|fetch /api/*| MW --> RT
     RT --> UTIL
     RT --> DB
     ST --> UI
     KBCA -->|POST /api/auth/login\n+ POST /api/transactions/bulk| RT
+    EXT -->|X-API-Key\nPOST /api/v1/ingest/qr| RT
 ```
 
 Tidak ada layanan eksternal saat runtime. Aset pihak ketiga (Tailwind, Chart.js,
@@ -74,16 +78,20 @@ Urutan middleware (berpengaruh pada perilaku):
 5. `express.json({ limit: '50mb' })` + `urlencoded` 50mb — untuk import massal.
 6. Static `public/` dengan `maxAge: 30d`; `index.html` dipaksa `Cache-Control: no-cache`.
 7. Static `/uploads` (`maxAge: 7d`) — avatar user.
-8. Mount 7 router (lihat §3.4).
-9. **SPA fallback**: semua route tak dikenal → kirim `public/index.html`.
+8. Mount 9 router (lihat §3.4).
+9. Error handler JSON untuk `/api/*` (JSON rusak / body terlalu besar → 4xx JSON, bukan HTML).
+10. **SPA fallback**: semua route tak dikenal → kirim `public/index.html`.
 
 Server listen di `0.0.0.0:${PORT || 3000}`.
 
 ### 3.2 `db.js` — koneksi & skema
 
 - Satu instance `sqlite3.Database` dibagikan ke seluruh proses (module singleton).
+  Path bisa diganti lewat env `TARTUN_DB_PATH` (dipakai test).
 - `initDb()` dijalankan saat koneksi terbuka: `CREATE TABLE IF NOT EXISTS` untuk
-  `users`, `transactions`, `logs`, `app_settings` + indeks.
+  `users`, `transactions`, `logs`, `app_settings`, `api_keys` + indeks, lalu migrasi:
+  `migrateAdminFee` (kolom + backfill `admin_fee`) → `migrateRefCode` (kolom + indeks +
+  backfill `ref_code`, lalu `ensureUniqueRefIndex`). Selesai → promise `db.ready`.
 - **Seeding otomatis**:
   - Baris `app_settings` `id = 1` diisi satu blob JSON `defaultSettings` raksasa
     (semua aturan bisnis — lihat §5) bila tabel kosong.
@@ -99,7 +107,9 @@ Server listen di `0.0.0.0:${PORT || 3000}`.
   | `db.allAsync(sql, params)` | banyak baris |
   | `db.runAsync(sql, params)` | INSERT / UPDATE / DELETE (resolve ke `this` → `lastID`, `changes`) |
 
-  Transaksi multi-statement: `BEGIN TRANSACTION` / `COMMIT` / `ROLLBACK` manual via `runAsync`.
+  | `db.withTransaction(fn)` | Transaksi multi-statement. **Wajib** dipakai untuk tulis berganda: semua request berbagi satu koneksi, sehingga transaksi harus diantrikan (BEGIN kedua saat transaksi lain terbuka akan gagal) |
+
+  Jangan menulis `BEGIN TRANSACTION` manual di route baru.
 
 ### 3.3 Skema database
 
@@ -119,14 +129,21 @@ users
 
 transactions
   id INTEGER PK
-  tanggal DATETIME NOT NULL          -- ISO string
+  tanggal DATETIME NOT NULL          -- ISO string (UTC)
   nama TEXT NOT NULL                 -- nama outlet (sudah dikonsolidasi ke "PARENT ...")
   jumlah REAL NOT NULL               -- bisa negatif (reversal)
   keterangan TEXT                    -- teks mentah, dipakai routing + kalkulasi fee
   tipe_sheet TEXT CHECK(tipe_sheet IN ('MANUAL','TIKET'))
-  batch_id TEXT                      -- UUID; mengelompokkan 1 import untuk undo
+  batch_id TEXT                      -- UUID / "single-<uuid>" / "api-<uuid>"; untuk undo
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  indeks: tanggal DESC, batch_id, nama, tipe_sheet, (nama,jumlah,keterangan)
+  admin_fee REAL                     -- biaya admin, dihitung server saat insert/edit
+  ref_code TEXT                      -- RRN/REF uppercase dari keterangan, '' bila tidak ada
+  indeks: tanggal DESC, batch_id, nama, tipe_sheet, (nama,jumlah,keterangan), ref_code,
+          UNIQUE (ref_code, jumlah) WHERE ref_code <> ''   -- uniq_transactions_ref_amount
+
+api_keys
+  id INTEGER PK, name TEXT, key_prefix TEXT UNIQUE (12 char), key_hash TEXT (SHA-256),
+  created_by TEXT, created_at, last_used_at, revoked_at
 
 logs
   id, created_at, actor (email), actor_role, action (string), details (JSON string)
@@ -150,12 +167,12 @@ Semua di-mount di bawah `/api`. Kolom **Auth**: `—` publik, `T` butuh token,
 | `POST /api/auth/check-session` | T | Bandingkan `session_id` klien vs DB (single-session lock); update `last_active_at` |
 | `POST /api/auth/logout` | T | Kosongkan `session_id`, log `LOGOUT` |
 | `GET /api/transactions` | — | List transaksi. `?limit=all` (default) → **seluruh tabel** dalam 1 response; atau paginasi `?page=&limit=`; filter `search`, `filterType`, `startDate`/`endDate` |
-| `POST /api/transactions/bulk` | role[Master,Admin,OED] | Insert massal, chunk 50 baris/statement dalam 1 transaksi, hasilkan/pakai `batch_id`, log `SUBMIT_DATA_*` |
-| `POST /api/transactions/check-duplicates` | role[Master,Admin,OED] | Cek duplikat berdasarkan kunci `date|nama|jumlah|keterangan` |
+| `POST /api/transactions/bulk` | role[Master,Admin,OED] | Insert massal `OR IGNORE` (chunk 50) dalam `withTransaction`; server menghitung `admin_fee` & `ref_code`; balas `{ inserted, skipped_duplicates }`; log `SUBMIT_DATA_*` |
+| `POST /api/transactions/check-duplicates` | role[Master,Admin,OED] | Baris ber-RRN: kunci `ref_code + jumlah` (lintas outlet); lainnya `date|nama|jumlah|keterangan`. Balas `{ duplicates, details }` |
 | `DELETE /api/transactions/range?start=&end=` | role[Master] | Hapus rentang tanggal, log `DELETE_DATA_RANGE` |
 | `DELETE /api/transactions/batch/:batch_id` | role[Master,Admin,OED] | **Undo import** — hapus semua baris satu `batch_id`, log `UNDO_IMPORT_SUCCESS` |
 | `POST /api/transactions/delete-bulk` | role[Master,Admin] | Hapus daftar `ids`, log `DELETE_SELECTED` |
-| `PUT /api/transactions/bulk-update` | role[Master,Admin] | Update banyak baris (`[{id, data:{col:val}}]`), log `BULK_UPDATE` |
+| `PUT /api/transactions/bulk-update` | role[Master,Admin] | Update banyak baris (`[{id, data:{col:val}}]`); kolom di-whitelist; hitung ulang `admin_fee`/`ref_code`; bentrok RRN → 409; log `BULK_UPDATE` |
 | `GET /api/summary?start=&end=` | — | Agregasi per-outlet + statistik fee (default: bulan kalender berjalan) |
 | `GET /api/dashboard/kpi` | — | KPI dashboard publik: komisi bulan ini, admin kemarin/hari-ini, outlet aktif, trend 7 hari, komposisi tipe, top-5 outlet |
 | `GET /api/settings` | — | Baca blob `app_settings` (dibutuhkan frontend & widget publik) |
@@ -170,6 +187,8 @@ Semua di-mount di bawah `/api`. Kolom **Auth**: `—` publik, `T` butuh token,
 | `PUT /api/users/me/filter-presets` | T | Simpan preset filter pribadi |
 | `GET /api/logs?limit=&actor=` | role[Master,Admin] | Audit log lengkap |
 | `GET /api/logs/recent?limit=` | — | Log publik (kecuali `LOGIN*`) untuk panel footer |
+| `GET\|POST /api/api-keys`, `DELETE /api/api-keys/:id` | role[Master] | Kelola API key ingest (key asli hanya dikembalikan saat dibuat) |
+| `POST /api/v1/ingest/qr` | `X-API-Key` | Ingest transaksi QR dari sistem lain (lihat §8a, `FEATURE-BLUEPRINT.md` F25) |
 
 ### 3.5 Autentikasi & otorisasi
 
@@ -191,35 +210,18 @@ Semua di-mount di bawah `/api`. Kolom **Auth**: `—` publik, `T` butuh token,
 
 ### 3.6 Utilitas bisnis (`utils/`)
 
-Dipakai server-side oleh `routes/summary.js` & `routes/dashboard.js`. Logika kembar
-ada juga di `public/js/utils.js` (`calculateAdminFee`) untuk kalkulator & preview klien.
+| File | Isi | Rincian |
+|---|---|---|
+| `adminFee.js` | `compileAdminRules`, `computeAdminFee`, `tiketUnikOf` — satu-satunya rumus biaya admin di server (identik dengan `public/js/utils.js:calculateAdminFee`) | F18 |
+| `transactionRef.js` | `extractReference` — RRN/REF dari keterangan (pola sama dengan `importEngine.js`) | F17 |
+| `duplicateLookup.js` | `findExistingByReference`, `findExistingByExactKey` | F17 |
+| `qrIngest.js` | Validasi & pengolahan payload API ingest | F25 |
+| `apiKeys.js` | Buat / hash / verifikasi API key | F25 |
+| `adminCalc2.js` | `aggregateByOutlet`, `rowAdminFee` — agregasi komisi untuk `/summary` & `/dashboard` (rumus sama dengan frontend) | F19 |
+| `inputParser.js` | Parser lama — **tidak dipakai** di mana pun (kode mati) | — |
 
-**`utils/adminCalc2.js`**
-
-- `calculateAdminFee(row, adminRules) → { fee, tiketUnik }`
-  1. `value = |jumlah|`, `keterangan` di-uppercase.
-  2. Urutkan `adminRules` menaik berdasarkan `amount`.
-  3. Ambil rule yang salah satu `keyword`-nya (dipisah koma) muncul di `keterangan`.
-  4. Pilih rule pertama dengan `value <= amount`; jika tidak ada, pakai rule terbesar.
-  5. `feeType`: `flat` → `feeValue`; `percentage` → `round(value * feeValue/100)`.
-  6. Bila `tipe_sheet === 'TIKET'`: tambahkan **kode unik** = 3 digit terakhir bagian
-     bulat `value` (mis. `...907` → +907), dikembalikan terpisah sebagai `tiketUnik`.
-- `aggregateByOutlet(data, settings) → [{ nama, count, total_jumlah, total_admin_fee,
-  komisi_outlet, komisi_cs, _raw }]`, terurut komisi outlet menurun.
-  - Fee dipisah `manualFee` vs `tiketFee` (+`tiketUnik`).
-  - `komisi_outlet` = `base * (outletCommissionPercentage/100)` lalu dikurangi
-    `komisi_cs` = komisi_outlet × `(csCommissionPercentage/100)`.
-  - `ticketFeeDestination` menentukan apakah `tiketUnik` masuk basis komisi.
-
-**`utils/inputParser.js`**
-
-- `parseDateWithPriority(str)` — `Date.parse` dulu; lalu heuristik `yyyy-mm-dd` /
-  `dd-mm-yyyy` berdasarkan panjang bagian; kembalikan ISO string atau `null`.
-- `parseRawDataInput(text, delimiter, settings)` — per baris:
-  skip header & baris yang cocok `exceptionKeywords`; parse angka gaya ID
-  (`.` ribuan, `,` desimal); konsolidasi `nama` via `nameConsolidation`;
-  routing ke `TIKET`/`MANUAL` via `routingKeywords`; baris gagal dikembalikan
-  dengan field `error`.
+Server juga memakai `public/js/importEngine.js` (modul murni, `module.exports`) untuk
+merender template keterangan, pemetaan nama, dan kata pengecualian di API ingest.
 
 ---
 
@@ -232,13 +234,17 @@ ada juga di `public/js/utils.js` (`calculateAdminFee`) untuk kalkulator & previe
 | Urutan | File | Global | Isi |
 |---|---|---|---|
 | 1 | `js/state.js` | `AppState`, `DefaultConfig` | State runtime terpusat + fallback config |
-| 2 | `js/utils.js` | `AppUtils` | Format mata uang/tanggal, ekspor CSV/JSON/PDF, parser Excel BCA & QRIS, lazy-loader CDN (`ensureXLSX`, `ensureHtml2canvas`) |
-| 3 | `js/api.js` | `AppAPI` | Wrapper `fetch` (+ token, timeout 30 dtk, auto-logout 401), dedupe `fetchAllData` |
-| 4 | `js/auth.js` | `AppAuth` | `check` / `login` / `logout` / `handleAuthStateChange` |
-| 5 | `js/virtualScroll.js` | `VirtualScrollManager` | Virtual scroll tabel (row absolut, buffer 5, throttle 16 ms) |
-| 6 | `js/handlers.js` | `AppHandlers` | ±4300 baris — semua logika interaksi: filter, import/staging, audit, summary, user mgmt, settings |
-| 7 | `js/ui.js` | `AppUI` | Render view & widget, chart, modal, loader, tema |
-| 8 | `js/main.js` | `App` | Objek root; `App.init()` |
+| 2 | `js/utils.js` | `AppUtils` | Format mata uang/tanggal, `calculateAdminFee` (pratinjau), `escapeHtml`, ekspor CSV/XLSX/JSON/PDF, lazy-loader CDN (`ensureXLSX`, `ensureJsPDF`, `ensureHtml2canvas`) |
+| 3 | `js/importEngine.js` | `AppImport` | Mesin import berbasis profil, kunci duplikat, kata pengecualian (murni, juga di-`require` server) |
+| 4 | `js/importSettings.js` | `AppImportSettings` | Editor Profil Format Import di Pengaturan |
+| 5 | `js/apiKeysSettings.js` | `AppApiKeys` | Panel API Ingest & API key di Pengaturan > Sistem |
+| 6 | `js/api.js` | `AppAPI` | Wrapper `fetch` (+ token, timeout 30 dtk, auto-logout 401), dedupe `fetchAllData` |
+| 7 | `js/auth.js` | `AppAuth` | `check` / `login` / `logout` / `handleAuthStateChange` |
+| 8 | `js/virtualScroll.js` | `VirtualScrollManager` | Virtual scroll tabel (row absolut, buffer 5, throttle 16 ms) |
+| 9 | `js/qrisCheck.js` | `AppQrisCheck` | Cek Admin QRIS (publik, tanpa DB) |
+| 10 | `js/handlers.js` | `AppHandlers` | ±4300 baris — logika interaksi: filter, import/staging, audit, summary, user mgmt, settings |
+| 11 | `js/ui.js` | `AppUI` | Render view & widget, chart, modal, loader, tema |
+| 12 | `js/main.js` | `App` | Objek root; `App.init()` |
 
 CDN dari `<head>`: Tailwind (`cdn.tailwindcss.com`), Chart.js + adapter date-fns +
 plugin datalabels, Lucide, SortableJS. XLSX/jsPDF/html2canvas dimuat **lazy**
@@ -250,16 +256,20 @@ saat pertama dibutuhkan (dari cdnjs).
 
 ```js
 const App = { state: AppState, utils: AppUtils, api: AppAPI, auth: AppAuth,
-              ui: AppUI, handlers: AppHandlers, settings: {...}, dom: {} };
+              ui: AppUI, handlers: AppHandlers, qrisCheck: AppQrisCheck,
+              importSettings: AppImportSettings, apiKeys: AppApiKeys,
+              settings: {...}, dom: {} };
 ```
 
-Dalam `App.init()`, **setiap method** dari `utils/api/auth/ui/handlers/settings`
-di-`bind(App)`. Efeknya: di dalam modul mana pun, `this` selalu `App`, sehingga
+Dalam `App.init()`, **setiap method** dari `utils/api/auth/ui/handlers/qrisCheck/
+importSettings/apiKeys/settings` di-`bind(App)`. `AppImport` tidak di-bind (fungsi murni,
+dipanggil langsung `AppImport.x()`). Efeknya: di dalam modul mana pun, `this` selalu `App`, sehingga
 sibling diakses lewat `this.api`, `this.state`, `this.ui`, `this.handlers`,
 `this.dom`, dst. `VirtualScrollManager.create()` memakai pola bind serupa per-instance.
 
 > Implikasi saat menulis kode: jangan pakai arrow function untuk method top-level
-> modul (akan mengunci `this`). Panggil sibling selalu via `this.`.
+> modul (akan mengunci `this`). Panggil sibling selalu via `this.`. Karena sudah di-bind,
+> `fn.call(ctxLain)` **tidak** mengganti `this` — untuk menguji, ubah `AppState` asli.
 
 ### 4.3 State & aliran data klien
 
@@ -297,9 +307,10 @@ DOMContentLoaded
 | `dashboard` | publik | Grid widget yang dapat dikonfigurasi (KPI, trend chart, top outlet, kalkulator admin, pengumuman) |
 | `summary` | publik | Tabel agregasi per-outlet (komisi/fee), kolom & sort dapat diatur |
 | `charts` | publik | Grafik dari data teragregasi |
-| `analysis` | Auditor/OED/Master/Admin | Tabel transaksi mentah (virtual scroll) + mode **Audit** (pasangan reversal) & mode **Semua Data**; edit inline, seleksi & aksi massal, filter batch via regex RRN |
-| `input` | OED/Master/Admin | Import data: paste, CSV, Excel merchant BCA (multi-sheet), settlement QRIS, KlikBCA; tabel *staging* dgn cek duplikat sebelum commit |
-| `settings` | Master | Editor blob `app_settings`: aturan admin fee, konsolidasi nama, NMID mapping, aturan audit, persen komisi, layout dashboard publik, tema/wallpaper, kontak WhatsApp |
+| `qris-check` | publik | Cek Admin QRIS: hitung biaya admin dari teks notifikasi, simpan di localStorage saja |
+| `analysis` | Auditor/OED/Master/Admin | Tabel transaksi mentah + kolom Biaya Admin (virtual scroll) + mode **Audit** (pasangan reversal) & mode **Semua Data**; edit, seleksi & aksi massal, Batch Filter RRN |
+| `input` | OED/Master/Admin | Opsi 1 paste, Opsi 2 unggah file CSV/Excel berbasis profil (deteksi otomatis), input tunggal; tabel *staging* dgn cek duplikat & pratinjau biaya admin sebelum commit |
+| `settings` | Master | Editor blob `app_settings` (tab Umum/Data/Bisnis/Sistem) + Profil Format Import + API key ingest |
 | `user-management` | Master/Admin | CRUD user + chart distribusi peran |
 
 `ui.switchView(name)` → destroy virtual-scroll view lama → cek role dari
@@ -310,21 +321,20 @@ DOMContentLoaded
 
 ```mermaid
 flowchart TD
-    A[Sumber: paste / CSV / Excel BCA / QRIS CSV / KlikBCA] --> B[Parser di handlers.js + utils.js]
-    B --> C[stageParsedTransactions → AppState.stagingData]
-    C --> D[POST /api/transactions/check-duplicates]
-    D --> E[Render tabel staging: valid / duplicate_db / duplicate_input / error]
-    E --> F{User klik Submit}
-    F -->|ya| G[POST /api/transactions/bulk → batch_id]
-    G --> H[Simpan batch_id ke localStorage.fkof_lastImportBatchId]
-    H --> I[Klien re-fetch semua data + render]
+    A1[Opsi 1: paste] --> P1[parseRawDataInput]
+    A2[Opsi 2: file CSV/Excel] --> D{Profil: deteksi otomatis\natau pilih manual}
+    D --> P2[AppImport.parseTables]
+    P2 --> F[AppImport.finalizeItems\npengecualian · nama · duplikat input]
+    P1 --> C
+    F --> C[POST /api/transactions/check-duplicates]
+    C --> E[Staging: valid / duplicate_input / duplicate_db / error\n+ pratinjau biaya admin]
+    E --> G[POST /api/transactions/bulk\nserver hitung admin_fee + ref_code, OR IGNORE]
+    G --> H[localStorage.fkof_lastImportBatchId → re-fetch]
     E -.->|Undo import terakhir| J[DELETE /api/transactions/batch/:batch_id]
 ```
 
-Parser khusus di `utils.js`: `parseMerchantBcaWorkbook` (gabung semua sheet cabang),
-`parseQrisSettlementCsv` (ambil baris status `success`), `parseBcaQrisText` (di
-`handlers.js`, teks KlikBCA). `extractBatchFilterCodes(rawText, patternStr)` memakai
-regex (default `RRN:\s*([^|]+?)\s*\|`) untuk filter batch di view analisis.
+Detail tiap langkah: `FEATURE-BLUEPRINT.md` F13–F17 & F24. `extractBatchFilterCodes`
+(regex default `RRN:\s*([^|]+?)\s*\|`) dipakai Batch Filter di view analisis (F10).
 
 ### 4.6 Audit reversal
 
@@ -353,7 +363,10 @@ Satu blob JSON (`app_settings.settings`, `id = 1`). Field utama:
 | `ticketFeeDestination` | `adminFee` \| `outletCommission` — tujuan `tiketUnik` |
 | `monthStartDay` / `monthEndDay` | bulan bisnis **29 → 28** (bukan bulan kalender) |
 | `publicDashboardLayout[]`, `dashboardWidgets[]`, `publicSummaryColumns[]` | konfigurasi tampilan |
-| `dataParsingSettings{}` | urutan kolom, format tanggal aktif, delimiter CSV (`;`) & paste (`\t`) |
+| `dataParsingSettings{}` | urutan kolom (paste), format tanggal aktif, delimiter CSV (`;`) & paste (`\t`) |
+| `importProfiles[]` | Profil Format Import untuk upload file (kosong → profil bawaan `importEngine.js`) |
+| `auditPanelEnabled`, `whatsappContacts[]`, `chartDataLimit` | Panel audit, kontak laporan WA, batas bar chart |
+| `adminBankFeePercent`, `adminBankKeywords[]` | Tersimpan tapi **belum dipakai** perhitungan mana pun |
 | `backgroundUrl`, `panelBlur`, `isFlatTheme`, `logoText` | tema/branding |
 
 Editor lengkap ada di view `settings` (hanya Master). Backup/restore JSON via menu
@@ -361,8 +374,7 @@ Settings (`App.settings.backup()` / `restore()`).
 
 > **Catatan:** `routes/summary.js` & `routes/dashboard.js` memakai `date('now',
 > 'start of month')` (bulan kalender), sedangkan bulan bisnis di frontend memakai
-> `monthStartDay/EndDay` (29–28). Perbedaan window ini disengaja/diketahui — periksa
-> saat menyentuh kalkulasi periode.
+> `monthStartDay/EndDay` (29–28). Frontend tidak memakai kedua endpoint itu.
 
 ---
 
@@ -376,7 +388,11 @@ npm start            # node server.js → http://0.0.0.0:3000
 docker compose up -d --build
 ```
 
-- **Tidak ada** test runner (`npm test` stub), linter, atau build frontend.
+- **Test**: `npm test` (runner bawaan `node:test`, tanpa dependency). Integration test
+  memakai DB sementara via `TARTUN_DB_PATH`, tidak menyentuh `data/tartun.db`.
+  Belum ada linter atau build frontend.
+- Skrip verifikasi: `node scripts/verify-admin-fee-parity.js [db]` — cocokkan `admin_fee`
+  tersimpan dengan rumus frontend (keluar 1 bila ada selisih).
 - Konfigurasi via env: `PORT` (default 3000), `JWT_SECRET` (WAJIB di-set untuk deploy nyata).
 - `Dockerfile`: `node:20-slim`, install `python3 make g++` untuk build sqlite3,
   `npm install --build-from-source=sqlite3 --omit=dev`.
@@ -454,12 +470,17 @@ Pengaturan > Sistem > "API Ingest Transaksi QR".
 
 | Item | Lokasi | Catatan |
 |---|---|---|
-| Kredensial Master hardcoded | `db.js` | `firz411@gmail.com` / `FkOf2025` di-seed; ganti setelah deploy |
+| Data transaksi asli di git | `data/tartun.db` | Masih terlacak (terakhir commit `9302098`) meski ada di `.gitignore`; `git rm --cached data/tartun.db` |
+| Kredensial Master hardcoded | `db.js` | `firz411@gmail.com` / `FkOf2025` di-seed & ada di riwayat git; ganti setelah deploy |
 | `JWT_SECRET` fallback hardcoded | `middleware/auth.js` | Set env var di produksi |
 | Rate limit longgar | `server.js` | 5000/15 mnt global; login tidak punya limiter ketat sendiri (kontras dgn arahan `.agents/rules/backend-expert.md`) |
 | `helmet` CSP dimatikan | `server.js` | Karena SPA + CDN + inline style |
 | `journal_mode = MEMORY` | `db.js` | Risiko kehilangan data pada crash proses |
 | Kode realtime Supabase | `handlers.js` (`setupDataListeners`, `handleRealtimeUpdate`), `state.js` (`dataChannel`) | Sudah tidak aktif; multi-user tidak melihat perubahan sampai reload |
-| Logika `calculateAdminFee` ganda | `utils/adminCalc2.js` & `public/js/utils.js` | Harus dijaga sinkron secara manual |
+| Rumus biaya admin di dua tempat | `utils/adminFee.js` & `public/js/utils.js` | Nilai final dari server; klien hanya pratinjau. Paritas dijaga `scripts/verify-admin-fee-parity.js` |
+| `api.logAction` klien tidak menyimpan | `public/js/api.js` | Hanya `console.log`; lihat `FEATURE-BLUEPRINT.md` F27 & Lampiran B |
+| Endpoint publik membuka semua transaksi | `GET /api/transactions` | Termasuk nama pembayar di keterangan |
 | Window periode berbeda | `routes/summary.js`/`dashboard.js` vs frontend | Kalender vs bulan bisnis 29–28 |
 | Seluruh tabel transaksi dimuat ke browser | `api.js` `fetchAllData` | Skalabilitas dibatasi memori klien & ukuran payload |
+
+Daftar lengkap per fitur beserta usulan perbaikan: `FEATURE-BLUEPRINT.md` Lampiran C.
