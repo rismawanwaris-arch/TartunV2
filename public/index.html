@@ -84,11 +84,18 @@
             </div>
 
             <div id="public-log-panel" class="mt-auto pt-4 border-t border-border-color">
-                <div class="flex justify-between items-center mb-2">
-                    <h2 class="text-xs font-bold uppercase text-text-muted px-2">Aktivitas Terkini</h2>
-                    <button id="view-all-logs-btn" class="hidden text-text-secondary hover:text-color-primary transition-colors pr-2">
-                        <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
-                    </button>
+                <div class="flex justify-between items-center mb-2 px-2">
+                    <h2 class="text-xs font-bold uppercase text-text-muted">Aktivitas Terkini</h2>
+                    <div class="flex items-center gap-1.5">
+                        <select id="log-panel-filter" class="bg-black/30 text-text-secondary text-[11px] rounded px-1.5 py-0.5 border border-border-color/50 focus:outline-none focus:border-color-primary cursor-pointer" title="Filter tipe log">
+                            <option value="all">Semua</option>
+                            <option value="user">User</option>
+                            <option value="api">API</option>
+                        </select>
+                        <button id="view-all-logs-btn" class="hidden text-text-secondary hover:text-color-primary transition-colors" title="Lihat Semua Log">
+                            <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
+                        </button>
+                    </div>
                 </div>
                 <div id="public-log-list" class="space-y-2 text-xs px-2"></div>
             </div>
@@ -396,9 +403,20 @@
             </div>
 
             <div class="glass-panel p-5 border-l-4 border-cyan-500 flex-shrink-0">
-                <div class="flex items-center gap-2 mb-2">
-                    <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="qr-code" class="w-4 h-4"></i></div>
-                    <h3 class="font-bold text-sm text-text-primary">Tempel Notifikasi QRIS</h3>
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                        <div class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400"><i data-lucide="qr-code" class="w-4 h-4"></i></div>
+                        <h3 class="font-bold text-sm text-text-primary">Tempel Notifikasi QRIS</h3>
+                    </div>
+                    <div class="flex items-center gap-2 w-full sm:w-auto">
+                        <label for="qris-check-outlet-select" class="text-xs text-text-secondary whitespace-nowrap">Pilih Outlet:</label>
+                        <select id="qris-check-outlet-select" class="form-input text-xs py-1.5 px-3 w-full sm:w-56">
+                            <option value="">-- Pilih Outlet --</option>
+                        </select>
+                        <button id="qris-check-fetch-outlet-btn" class="btn btn-secondary btn-sm whitespace-nowrap flex items-center gap-1" title="Ambil data transaksi QRIS untuk outlet ini">
+                            <i data-lucide="download" class="w-3.5 h-3.5"></i> <span>Ambil Data</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="relative w-full mt-1">
                     <label for="qris-check-input" class="sr-only">Teks Notifikasi QRIS</label>

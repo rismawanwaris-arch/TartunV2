@@ -26,6 +26,8 @@ test.before(async () => {
   app.use(express.json());
   app.use('/api/v1/ingest', require('../routes/ingest'));
   app.use('/api/api-keys', require('../routes/apiKeys'));
+  app.use('/api/logs', require('../routes/logs'));
+  app.use('/api/reactor', require('../routes/reactor'));
   await new Promise(resolve => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${server.address().port}/api`;
 });
@@ -142,3 +144,52 @@ test('key yang dicabut tidak bisa dipakai lagi', async () => {
   assert.equal((await ingest([trx({ ref: 'SETELAHCABUT1' })])).status, 401);
   assert.equal((await req('DELETE', `/api-keys/${list.body.data[0].id}`, { token: masterToken })).status, 404);
 });
+
+test('filter log API vs User pada endpoint /logs dan /logs/recent', async () => {
+  // Tambahkan log user sintetis
+  await db.runAsync(`INSERT INTO logs (actor, actor_role, action, details) VALUES ('operator@test', 'OED', 'UPDATE_ROW', '{}')`);
+
+  const allLogs = await req('GET', '/logs', { token: masterToken });
+  assert.equal(allLogs.status, 200);
+  assert.ok(allLogs.body.length > 0);
+
+  const apiLogs = await req('GET', '/logs?type=api', { token: masterToken });
+  assert.equal(apiLogs.status, 200);
+  assert.ok(apiLogs.body.every(l => l.actor_role === 'API' || (l.action && l.action.startsWith('API_')) || (l.actor && l.actor.startsWith('api:'))));
+
+  const userLogs = await req('GET', '/logs?type=user', { token: masterToken });
+  assert.equal(userLogs.status, 200);
+  assert.ok(userLogs.body.every(l => l.actor_role !== 'API' && (!l.action || !l.action.startsWith('API_')) && (!l.actor || !l.actor.startsWith('api:'))));
+
+  const recentApi = await req('GET', '/logs/recent?type=api');
+  assert.equal(recentApi.status, 200);
+  assert.ok(recentApi.body.every(l => l.actor_role === 'API' || (l.action && l.action.startsWith('API_')) || (l.actor && l.actor.startsWith('api:'))));
+
+  const recentUser = await req('GET', '/logs/recent?type=user');
+  assert.equal(recentUser.status, 200);
+  assert.ok(recentUser.body.every(l => l.actor_role !== 'API' && (!l.action || !l.action.startsWith('API_')) && (!l.actor || !l.actor.startsWith('api:'))));
+});
+
+test('reactor: status version dan deteksi perubahan data', async () => {
+  // Buat API key baru karena key sebelumnya sudah dicabut di test sebelumnya
+  const newKeyRes = await req('POST', '/api-keys', {
+    token: masterToken,
+    body: { name: 'Reactor Ingest Key' }
+  });
+  assert.equal(newKeyRes.status, 201);
+  const reactorKey = newKeyRes.body.data.key;
+
+  const v1 = await req('GET', '/reactor/version');
+  assert.equal(v1.status, 200);
+  assert.ok(typeof v1.body.version === 'number');
+
+  // Lakukan insert transaksi via ingest dengan key baru
+  const ingestRes = await ingest([trx({ ref: 'REACTORTEST01', amount: 50000 })], reactorKey);
+  assert.equal(ingestRes.status, 200);
+
+  const v2 = await req('GET', '/reactor/version');
+  assert.equal(v2.status, 200);
+  assert.ok(v2.body.version > v1.body.version);
+  assert.ok(v2.body.count > v1.body.count);
+});
+

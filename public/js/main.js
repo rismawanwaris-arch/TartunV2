@@ -255,8 +255,17 @@ document.addEventListener('DOMContentLoaded', () => {
             };
 
             this.dom.filterSearch.addEventListener('input', debouncedFilter);
-            this.dom.filterStartDate.addEventListener('change', () => this.ui.renderFilteredContent());
-            this.dom.filterEndDate.addEventListener('change', () => this.ui.renderFilteredContent());
+            const onDateFilterChange = () => {
+                this.ui.renderFilteredContent();
+                if (this.state.activeView === 'qris-check') {
+                    const sel = document.getElementById('qris-check-outlet-select');
+                    if (sel && sel.value) {
+                        this.qrisCheck.loadOutletData(sel.value, true);
+                    }
+                }
+            };
+            this.dom.filterStartDate.addEventListener('change', onDateFilterChange);
+            this.dom.filterEndDate.addEventListener('change', onDateFilterChange);
             this.dom.filterType.addEventListener('change', () => this.ui.renderFilteredContent());
             
             this.dom.resetBtn.addEventListener('click', this.handlers.handleFilterReset);

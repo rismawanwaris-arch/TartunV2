@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 const db = require('../db');
 const { authenticateApiKey } = require('../middleware/apiKey');
 const { MAX_BATCH_SIZE, ingestTransactions } = require('../utils/qrIngest');
+const { broadcastDataChange } = require('../utils/reactor');
 
 const router = express.Router();
 
@@ -33,6 +34,9 @@ router.post('/qr', ingestLimiter, authenticateApiKey, async (req, res) => {
       `api:${req.apiKey.name}`, 'API', 'API_INGEST',
       JSON.stringify({ batch_id: batchId, received: data.received, inserted: data.inserted, duplicates: data.duplicates, rejected: data.rejected })
     ]);
+    if (data.inserted > 0) {
+      broadcastDataChange({ eventType: 'INSERT', count: data.inserted, batch_id: batchId, source: 'API' });
+    }
     res.json({ success: true, data });
   } catch (error) {
     console.error('API ingest gagal:', error);

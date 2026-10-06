@@ -374,6 +374,9 @@ const AppHandlers = {
             });
 
             this.handlers.buildIndexes();
+            if (this.state.activeView === 'qris-check' && typeof this.qrisCheck.populateOutletDropdown === 'function') {
+                this.qrisCheck.populateOutletDropdown();
+            }
 
         } catch (error) {
             this.ui.displayError("Koneksi Gagal", `Gagal mengambil data awal.\n\nError: ${error.message}`);
@@ -383,46 +386,107 @@ const AppHandlers = {
 
     setupDataListeners() {
         if (this.state.dataChannel) {
+            try {
+                this.state.dataChannel.close();
+            } catch (e) {}
             this.state.dataChannel = null;
+        }
+
+        // Hubungkan ke SSE stream backend untuk menerima perubahan data realtime
+        try {
+            const eventSource = new EventSource('/api/reactor/stream');
+            this.state.dataChannel = eventSource;
+
+            eventSource.onopen = () => {
+                console.log('[Reactor] Terhubung ke live stream data.');
+            };
+
+            eventSource.onmessage = (event) => {
+                try {
+                    const payload = JSON.parse(event.data);
+                    if (payload.type === 'DATA_CHANGE') {
+                        this.handlers.handleReactorEvent(payload);
+                    }
+                } catch (err) {
+                    console.error('[Reactor] Error parsing event:', err);
+                }
+            };
+
+            eventSource.onerror = () => {
+                console.warn('[Reactor] Koneksi stream terputus, reconnect otomatis...');
+            };
+        } catch (err) {
+            console.error('[Reactor] Gagal inisialisasi EventSource:', err);
+        }
+
+        // Heartbeat polling cadangan setiap 15 detik jika SSE diblokir oleh proxy/jaringan
+        if (!this.state._reactorPollingTimer) {
+            this.state._lastReactorCount = null;
+            this.state._reactorPollingTimer = setInterval(async () => {
+                try {
+                    const status = await this.api.req('/reactor/version');
+                    if (status && typeof status.count === 'number') {
+                        if (this.state._lastReactorCount !== null && this.state._lastReactorCount !== status.count) {
+                            this.handlers.handleReactorEvent({ type: 'POLL_CHANGE', count: status.count });
+                        }
+                        this.state._lastReactorCount = status.count;
+                    }
+                } catch (e) {}
+            }, 15000);
+        }
+    },
+
+    async handleReactorEvent(payload) {
+        console.log('[Reactor] Perubahan data terdeteksi:', payload);
+        try {
+            // Ambil data terbaru secara background tanpa reload halaman penuh
+            const initialData = await this.api.fetchAllData();
+            const { nameConsolidation = {} } = this.state.settings || {};
+            const nameCache = new Map();
+            this.state.allData = initialData.map(row => {
+                const rawName = String(row.nama || '');
+                let finalName = nameCache.get(rawName);
+                if (finalName === undefined) {
+                    const normalizedName = this.utils.normalizeName(rawName);
+                    finalName = nameConsolidation[normalizedName.toUpperCase()] || normalizedName;
+                    nameCache.set(rawName, finalName);
+                }
+                row.nama = finalName;
+                row._ts = row.tanggal ? Date.parse(row.tanggal) : 0;
+                return row;
+            });
+
+            this.handlers.buildIndexes();
+
+            // Refresh konten tampilan aktif secara mulus
+            if (this.state.activeView === 'analysis') {
+                this.ui.renderFilteredContent();
+            } else if (this.state.activeView === 'dashboard') {
+                this.handlers.renderDashboardView();
+            } else if (this.state.activeView === 'summary') {
+                this.handlers.renderSummaryView();
+            } else if (this.state.activeView === 'charts') {
+                this.handlers.renderChartsView();
+            } else if (this.state.activeView === 'qris-check') {
+                if (typeof this.qrisCheck.populateOutletDropdown === 'function') {
+                    this.qrisCheck.populateOutletDropdown();
+                }
+                const outletSelect = document.getElementById('qris-check-outlet-select');
+                if (outletSelect && outletSelect.value) {
+                    this.qrisCheck.loadOutletData(outletSelect.value, true);
+                }
+            }
+
+            // Perbarui log aktivitas di panel terkini
+            await this.handlers.listenToLogChanges();
+            this.ui.setStatus(`Data diperbarui otomatis (${this.state.allData.length} baris).`);
+        } catch (e) {
+            console.error('[Reactor] Gagal sinkronisasi data:', e);
         }
     },
 
     handleRealtimeUpdate(payload) {
-        const {
-            eventType,
-            new: newRecord,
-            old: oldRecord
-        } = payload;
-        let dataChanged = false;
-
-        if (eventType === 'INSERT') {
-            if (newRecord) newRecord._ts = newRecord.tanggal ? Date.parse(newRecord.tanggal) : 0;
-            this.state.allData.unshift(newRecord);
-            dataChanged = true;
-        } else if (eventType === 'UPDATE') {
-            const i = this.state.allData.findIndex(item => item.id === newRecord.id);
-            if (i > -1) {
-                if (newRecord) newRecord._ts = newRecord.tanggal ? Date.parse(newRecord.tanggal) : 0;
-                this.state.allData[i] = newRecord;
-                dataChanged = true;
-            }
-        } else if (eventType === 'DELETE') {
-            const initialLength = this.state.allData.length;
-            this.state.allData = this.state.allData.filter(item => item.id !== oldRecord.id);
-            if (this.state.allData.length !== initialLength) {
-                dataChanged = true;
-            }
-        }
-
-        if (dataChanged) {
-            this.handlers.buildIndexes();
-        }
-
-        if (this.state.isInitialRenderComplete) {
-            this.ui.renderFilteredContent();
-        }
-        
-        this.ui.setStatus(`Data diperbarui. Total: ${this.state.allData.length} baris.`);
+        this.handlers.handleReactorEvent(payload);
     },
 
     setupClearButtons(container = document) {
@@ -744,29 +808,54 @@ const AppHandlers = {
         }
     
         const hiddenPublicActions = ['LOGIN_SUCCESS', 'LOGIN_FAIL', 'LOGIN_FAIL_INACTIVE', 'LOGOUT'];
+        const filterSelect = document.getElementById('log-panel-filter');
     
         const renderLogs = (logs) => {
             const logList = document.getElementById('public-log-list');
             if (logList && logs) {
-                const logsToDisplay = !this.state.currentUser
+                let logsToDisplay = !this.state.currentUser
                     ? logs.filter(log => !hiddenPublicActions.includes(log.action))
                     : logs;
+
+                const currentFilter = filterSelect ? filterSelect.value : 'all';
+                if (currentFilter === 'api') {
+                    logsToDisplay = logsToDisplay.filter(log => log.actor_role === 'API' || (log.action && log.action.startsWith('API_')) || (log.actor && log.actor.startsWith('api:')));
+                } else if (currentFilter === 'user') {
+                    logsToDisplay = logsToDisplay.filter(log => log.actor_role !== 'API' && (!log.action || !log.action.startsWith('API_')) && (!log.actor || !log.actor.startsWith('api:')));
+                }
     
-                logList.innerHTML = logsToDisplay.map(log => `
+                if (logsToDisplay.length === 0) {
+                    logList.innerHTML = '<p class="text-[11px] text-text-muted italic text-center py-2">Tidak ada log untuk kategori ini</p>';
+                    return;
+                }
+
+                logList.innerHTML = logsToDisplay.slice(0, 3).map(log => {
+                    const isApi = log.actor_role === 'API' || (log.action && log.action.startsWith('API_')) || (log.actor && log.actor.startsWith('api:'));
+                    const badge = isApi ? '<span class="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-400 font-mono mr-1">API</span>' : '';
+                    return `
                     <div class="p-1 rounded bg-black/20 text-xs">
                         <div class="flex justify-between items-center">
-                            <span class="font-bold text-color-primary">${log.action}</span>
+                            <span class="font-bold text-color-primary flex items-center">${badge}${log.action}</span>
                             <span class="text-text-muted">${new Date(log.created_at).toLocaleTimeString('id-ID')}</span>
                         </div>
                         <p class="text-text-secondary truncate">oleh: ${this.utils.censorEmail(log.actor)}</p>
                     </div>
-                `).join('');
+                `;
+                }).join('');
             }
         };
     
         try {
-            const logs = await this.api.req('/logs/recent?limit=10');
-            renderLogs(logs.slice(0, 3));
+            const logs = await this.api.req('/logs/recent?limit=30');
+            this.state._recentLogs = logs;
+            renderLogs(logs);
+
+            if (filterSelect && !filterSelect._hasListener) {
+                filterSelect._hasListener = true;
+                filterSelect.addEventListener('change', () => {
+                    renderLogs(this.state._recentLogs || []);
+                });
+            }
         } catch (e) {
             console.error("Gagal mengambil log awal:", e);
         }
@@ -778,6 +867,19 @@ const AppHandlers = {
             const logs = await this.api.req('/logs?limit=500');
 
             const tableContent = `
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                        <label for="log-modal-filter-source" class="text-xs font-bold text-text-secondary">Filter Sumber:</label>
+                        <select id="log-modal-filter-source" class="form-input text-xs py-1 px-2.5">
+                            <option value="all">Semua Aktivitas</option>
+                            <option value="user">Hanya Pengguna (User)</option>
+                            <option value="api">Hanya API Ingest</option>
+                        </select>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <input type="text" id="log-modal-search" placeholder="Cari aksi, pengguna, detail..." class="form-input text-xs py-1 px-2.5 w-56">
+                    </div>
+                </div>
                 <div class="border border-border-color rounded-lg overflow-hidden">
                     <table class="w-full text-left text-xs table-fixed">
                         <thead class="bg-bg-panel backdrop-blur-sm">
@@ -814,11 +916,13 @@ const AppHandlers = {
             );
 
             const renderLogModalRow = (log) => {
+                const isApi = log.actor_role === 'API' || (log.action && log.action.startsWith('API_')) || (log.actor && log.actor.startsWith('api:'));
+                const badge = isApi ? '<span class="text-[9px] px-1 py-0.5 rounded bg-purple-500/20 text-purple-400 font-mono mr-1">API</span>' : '';
                 return `
                     <tr class="h-[48px]">
                         <td class="p-2 w-40 text-text-muted whitespace-nowrap">${new Date(log.created_at).toLocaleString('id-ID', {dateStyle:'short', timeStyle:'medium'})}</td>
                         <td class="p-2 w-48 truncate">${log.actor}</td>
-                        <td class="p-2 w-40 font-mono text-color-primary truncate">${log.action}</td>
+                        <td class="p-2 w-40 font-mono text-color-primary truncate flex items-center">${badge}${log.action}</td>
                         <td class="p-2 text-text-muted break-all">${this.utils.formatLogDetails(log.details)}</td>
                     </tr>
                 `;
@@ -834,6 +938,34 @@ const AppHandlers = {
             });
             this.state.virtualScrollInstances.logModal = vsInstance;
             vsInstance.initialize();
+
+            const sourceSelect = document.getElementById('log-modal-filter-source');
+            const searchInput = document.getElementById('log-modal-search');
+
+            const applyModalFilters = () => {
+                const src = sourceSelect ? sourceSelect.value : 'all';
+                const q = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+                let filtered = logs;
+                if (src === 'api') {
+                    filtered = filtered.filter(l => l.actor_role === 'API' || (l.action && l.action.startsWith('API_')) || (l.actor && l.actor.startsWith('api:')));
+                } else if (src === 'user') {
+                    filtered = filtered.filter(l => l.actor_role !== 'API' && (!l.action || !l.action.startsWith('API_')) && (!l.actor || !l.actor.startsWith('api:')));
+                }
+
+                if (q) {
+                    filtered = filtered.filter(l =>
+                        String(l.actor || '').toLowerCase().includes(q) ||
+                        String(l.action || '').toLowerCase().includes(q) ||
+                        String(l.details || '').toLowerCase().includes(q)
+                    );
+                }
+
+                vsInstance.updateData(filtered);
+            };
+
+            if (sourceSelect) sourceSelect.addEventListener('change', applyModalFilters);
+            if (searchInput) searchInput.addEventListener('input', applyModalFilters);
 
         } catch (err) {
             this.ui.showModal('Error', `Gagal memuat log: ${err.message}`);
@@ -2130,6 +2262,11 @@ const AppHandlers = {
     },
 
     setupInputView() {
+        const singleDate = document.getElementById('single-entry-date');
+        if (singleDate && !singleDate.value) {
+            singleDate.value = this.utils.formatDateForInput(new Date());
+        }
+
         document.getElementById('process-data-btn').onclick = () => this.handlers.processAndStageData();
         document.getElementById('single-entry-form').onsubmit = this.handlers.handleSingleEntrySubmit;
         document.getElementById('download-template-btn').onclick = this.handlers.downloadInputTemplate;
@@ -3925,10 +4062,9 @@ const AppHandlers = {
 
     setDefaultDateFilters() {
         const today = new Date();
-        const yesterday = new Date();
-        yesterday.setDate(today.getDate() - 1);
-        this.dom.filterStartDate.value = this.utils.formatDateForInput(yesterday);
-        this.dom.filterEndDate.value = this.utils.formatDateForInput(today);
+        const todayStr = this.utils.formatDateForInput(today);
+        this.dom.filterStartDate.value = todayStr;
+        this.dom.filterEndDate.value = todayStr;
     },
 
     setToCurrentBusinessMonth() {

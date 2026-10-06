@@ -55,6 +55,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const logsRoutes = require('./routes/logs');
 const ingestRoutes = require('./routes/ingest');
 const apiKeysRoutes = require('./routes/apiKeys');
+const reactorRoutes = require('./routes/reactor');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
@@ -65,6 +66,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/v1/ingest', ingestRoutes);
 app.use('/api/api-keys', apiKeysRoutes);
+app.use('/api/reactor', reactorRoutes);
 
 // Error dari parser body (JSON rusak, body terlalu besar) dijawab JSON untuk
 // request API, bukan halaman HTML bawaan Express.

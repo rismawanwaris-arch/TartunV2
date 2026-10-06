@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const { compileAdminRules, computeAdminFee } = require('../utils/adminFee');
 const { extractReference } = require('../utils/transactionRef');
 const { amountKey, findExistingByReference, findExistingByExactKey } = require('../utils/duplicateLookup');
+const { broadcastDataChange } = require('../utils/reactor');
 
 // Kolom yang benar-benar dipakai frontend. Sengaja tidak SELECT * agar
 // batch_id (UUID 36 char) & row_hash tidak ikut terkirim -> payload jauh lebih kecil.
@@ -108,6 +109,10 @@ router.post('/bulk', authenticateToken, requireRole('Master', 'Admin', 'OED'), a
       req.user.email, req.user.role, 'SUBMIT_DATA_SUCCESS', JSON.stringify({ batch_id: trxBatchId, count: inserted, skipped_duplicates: rows.length - inserted })
     ]);
 
+    if (inserted > 0) {
+      broadcastDataChange({ eventType: 'INSERT', count: inserted, batch_id: trxBatchId });
+    }
+
     res.json({ success: true, batch_id: trxBatchId, inserted, skipped_duplicates: rows.length - inserted });
   } catch (error) {
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
@@ -166,6 +171,9 @@ router.delete('/range', authenticateToken, requireRole('Master'), async (req, re
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
       req.user.email, req.user.role, 'DELETE_DATA_RANGE', JSON.stringify({ start, end, deleted: result.changes })
     ]);
+    if (result.changes > 0) {
+      broadcastDataChange({ eventType: 'DELETE', count: result.changes, range: { start, end } });
+    }
     res.json({ success: true, deleted: result.changes });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -179,6 +187,9 @@ router.delete('/batch/:batch_id', authenticateToken, requireRole('Master', 'Admi
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
       req.user.email, req.user.role, 'UNDO_IMPORT_SUCCESS', JSON.stringify({ batch_id, deleted: result.changes })
     ]);
+    if (result.changes > 0) {
+      broadcastDataChange({ eventType: 'DELETE', count: result.changes, batch_id });
+    }
     res.json({ success: true, deleted: result.changes });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -196,6 +207,9 @@ router.post('/delete-bulk', authenticateToken, requireRole('Master', 'Admin'), a
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
       req.user.email, req.user.role, 'DELETE_SELECTED', JSON.stringify({ count: result.changes })
     ]);
+    if (result.changes > 0) {
+      broadcastDataChange({ eventType: 'DELETE', count: result.changes, ids });
+    }
     res.json({ success: true, count: result.changes });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -250,6 +264,9 @@ router.put('/bulk-update', authenticateToken, requireRole('Master', 'Admin'), as
     await db.runAsync('INSERT INTO logs (actor, actor_role, action, details) VALUES (?, ?, ?, ?)', [
       req.user.email, req.user.role, 'BULK_UPDATE', JSON.stringify({ count })
     ]);
+    if (count > 0) {
+      broadcastDataChange({ eventType: 'UPDATE', count });
+    }
     res.json({ success: true, count });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT' && /ref_code/.test(error.message)) {

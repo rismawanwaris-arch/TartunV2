@@ -75,6 +75,9 @@ const AppQrisCheck = {
             const outletMatch = outletLine.match(/^(.*?)\s*\(NMID:\s*[^)]+\)/i);
             if (outletMatch) outlet = outletMatch[1].trim();
         }
+        if (!outlet && lines[1] && !lines[1].startsWith('+') && !lines[1].toLowerCase().includes('menerima pembayaran')) {
+            outlet = lines[1].replace(/\(NMID:.*?\)/i, '').trim();
+        }
 
         // Baris bank + nama customer, mis. "Menerima pembayaran dari DANA a.n. *******".
         let bank = '';
@@ -85,6 +88,12 @@ const AppQrisCheck = {
             if (payMatch) {
                 bank = payMatch[1].trim();
                 customerName = payMatch[2].trim();
+            } else {
+                const altMatch = payLine.match(/Menerima pembayaran dari\s+(.+)/i);
+                if (altMatch) {
+                    bank = altMatch[1].trim();
+                    customerName = '-';
+                }
             }
         }
 
@@ -391,6 +400,151 @@ const AppQrisCheck = {
         this.qrisCheck.renderOperatorPanel(transactions);
     },
 
+    populateOutletDropdown() {
+        const select = document.getElementById('qris-check-outlet-select');
+        if (!select) return;
+
+        const allTxs = this.state.allData || [];
+        const outletSet = new Set();
+        for (const tx of allTxs) {
+            if (tx && tx.nama && String(tx.nama).trim()) {
+                outletSet.add(String(tx.nama).trim());
+            }
+        }
+
+        const sortedOutlets = Array.from(outletSet).sort((a, b) => a.localeCompare('id'));
+        const currentVal = select.value;
+
+        select.innerHTML = '<option value="">-- Pilih Outlet --</option>' +
+            sortedOutlets.map(o => `<option value="${this.qrisCheck._escapeHtml(o)}">${this.qrisCheck._escapeHtml(o)}</option>`).join('');
+
+        if (currentVal && outletSet.has(currentVal)) {
+            select.value = currentVal;
+        }
+    },
+
+    loadOutletData(outletName, isSilent = false) {
+        if (!outletName) {
+            if (!isSilent) this.ui.showModal('Info', 'Silakan pilih outlet terlebih dahulu dari dropdown.');
+            return;
+        }
+
+        const allTxs = this.state.allData || [];
+        const outletTxs = allTxs.filter(tx => tx.nama === outletName);
+        if (outletTxs.length === 0) {
+            if (!isSilent) this.ui.showModal('Info', `Tidak ditemukan data transaksi untuk outlet "${outletName}".`);
+            return;
+        }
+
+        // Tentukan batas tanggal sesuai filter aktif di sistem (kalender range / qris-check-date)
+        let startDateVal = this.dom.filterStartDate ? this.dom.filterStartDate.value : '';
+        let endDateVal = this.dom.filterEndDate ? this.dom.filterEndDate.value : '';
+
+        // Jika filter kalender utama kosong, gunakan input tanggal di modul qris-check
+        if (!startDateVal && !endDateVal) {
+            const qDateEl = document.getElementById('qris-check-date');
+            const qDate = qDateEl ? qDateEl.value : this.state.qrisCheckDate;
+            if (qDate) {
+                startDateVal = qDate;
+                endDateVal = qDate;
+            }
+        }
+
+        const startDate = startDateVal ? new Date(startDateVal) : null;
+        if (startDate) startDate.setHours(0, 0, 0, 0);
+        const endDate = endDateVal ? new Date(endDateVal) : null;
+        if (endDate) endDate.setHours(23, 59, 59, 999);
+        const startTs = startDate ? startDate.getTime() : null;
+        const endTs = endDate ? endDate.getTime() : null;
+
+        // WAJIB saring transaksi sesuai rentang tanggal pada filter!
+        const dateFilteredTxs = outletTxs.filter(tx => {
+            const rowTs = tx._ts !== undefined ? tx._ts : (tx.tanggal ? Date.parse(tx.tanggal) : 0);
+            if (startTs !== null && rowTs < startTs) return false;
+            if (endTs !== null && rowTs > endTs) return false;
+            return true;
+        });
+
+        if (dateFilteredTxs.length === 0) {
+            const dateLabel = startDateVal === endDateVal
+                ? (startDateVal || 'hari ini')
+                : `${startDateVal} s/d ${endDateVal}`;
+            if (!isSilent) {
+                this.ui.showModal('Data Tidak Ditemukan', `Tidak ada transaksi untuk outlet "${outletName}" pada tanggal filter (${dateLabel}).`);
+            }
+            const input = document.getElementById('qris-check-input');
+            if (input) input.value = '';
+            this.state.qrisCheckData = [];
+            this.qrisCheck.render();
+            return;
+        }
+
+        // Prioritaskan transaksi dengan kata kunci QR/QRIS atau ref_code
+        let qrTxs = dateFilteredTxs.filter(tx => {
+            const ket = String(tx.keterangan || '').toUpperCase();
+            return ket.includes('QR') || ket.includes('RRN') || ket.includes('REF') || Boolean(tx.ref_code);
+        });
+
+        if (qrTxs.length === 0) {
+            qrTxs = dateFilteredTxs;
+        }
+
+        const formattedBlocks = qrTxs.map(tx => {
+            let rrn = tx.ref_code;
+            if (!rrn && tx.keterangan) {
+                const rrnMatch = tx.keterangan.match(/RRN:\s*([^\s|]+)/i) || tx.keterangan.match(/REF:\s*([^\s|]+)/i);
+                if (rrnMatch) rrn = rrnMatch[1];
+            }
+            if (!rrn) rrn = `TX${tx.id || Math.floor(Math.random() * 1000000)}`;
+
+            let timeStr = '00.00';
+            if (tx.tanggal) {
+                const d = new Date(tx.tanggal);
+                if (!isNaN(d.getTime())) {
+                    const h = String(d.getHours()).padStart(2, '0');
+                    const m = String(d.getMinutes()).padStart(2, '0');
+                    timeStr = `${h}.${m}`;
+                }
+            }
+            const timeInKet = String(tx.keterangan || '').match(/(\d{1,2}[.:]\d{2})\s*WIB/i);
+            if (timeInKet) {
+                timeStr = timeInKet[1].replace(':', '.');
+            }
+
+            let payInfo = 'Menerima pembayaran dari QRIS a.n. Pelanggan';
+            const payMatch = String(tx.keterangan || '').match(/(Menerima pembayaran[^\n\r]*)/i);
+            if (payMatch) {
+                payInfo = payMatch[1].trim();
+            }
+
+            const amountFormatted = new Intl.NumberFormat('id-ID').format(Math.abs(tx.jumlah || 0));
+
+            return [
+                `RRN: ${rrn} | ${timeStr} WIB`,
+                `${tx.nama} (NMID: -)`,
+                payInfo,
+                `+ Rp ${amountFormatted}`
+            ].join('\n');
+        });
+
+        const rawText = formattedBlocks.join('\n\n');
+        const input = document.getElementById('qris-check-input');
+        if (input) {
+            input.value = rawText;
+        }
+
+        // Sinkronisasi tanggal pada modul operator
+        const targetDate = startDateVal || this.qrisCheck._today();
+        this.state.qrisCheckDate = targetDate;
+        const dateEl = document.getElementById('qris-check-date');
+        if (dateEl) dateEl.value = targetDate;
+
+        this.qrisCheck.process();
+        if (!isSilent) {
+            this.ui.setStatus(`${qrTxs.length} transaksi QRIS untuk "${outletName}" berhasil dimuat sesuai tanggal filter.`);
+        }
+    },
+
     // Dipanggil oleh ui.viewSetups['qris-check'] setiap kali view ini dibuka.
     setup() {
         const input = document.getElementById('qris-check-input');
@@ -398,7 +552,12 @@ const AppQrisCheck = {
         const clearBtn = document.getElementById('qris-check-clear-btn');
         const dateEl = document.getElementById('qris-check-date');
         const copyBtn = document.getElementById('qris-check-copy-btn');
+        const outletSelect = document.getElementById('qris-check-outlet-select');
+        const fetchOutletBtn = document.getElementById('qris-check-fetch-outlet-btn');
+
         if (!input || !processBtn || !clearBtn || !dateEl || !copyBtn) return;
+
+        this.qrisCheck.populateOutletDropdown();
 
         const saved = this.qrisCheck._load();
         input.value = (saved && saved.rawText) || '';
@@ -410,5 +569,23 @@ const AppQrisCheck = {
         clearBtn.addEventListener('click', () => this.qrisCheck.clear());
         dateEl.addEventListener('change', () => this.qrisCheck.changeDate(dateEl.value));
         copyBtn.addEventListener('click', () => this.qrisCheck.copyOperatorText());
+
+        if (outletSelect) {
+            outletSelect.addEventListener('change', () => {
+                if (outletSelect.value) {
+                    this.qrisCheck.loadOutletData(outletSelect.value);
+                }
+            });
+        }
+        if (fetchOutletBtn) {
+            fetchOutletBtn.addEventListener('click', () => {
+                const val = outletSelect ? outletSelect.value : '';
+                this.qrisCheck.loadOutletData(val);
+            });
+        }
+
+        if (window.lucide && typeof lucide.createIcons === 'function') {
+            lucide.createIcons();
+        }
     }
 };
