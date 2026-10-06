@@ -1633,10 +1633,34 @@ const AppUI = {
 
     showTransactionDetailModal(userName, data, isUserLoggedIn) {
         const canEdit = isUserLoggedIn && ['Master', 'Admin'].includes(this.state.currentUser?.role);
-        
         const layoutClass = canEdit ? 'layout-can-edit' : 'layout-cannot-edit';
 
-        let headerHTML = `
+        // Hitung total keseluruhan, total QRIS, dan total Bank (EDC/TF)
+        let totalAllAmount = 0, totalAllAdmin = 0;
+        let totalQrisAmount = 0, totalQrisAdmin = 0, countQris = 0;
+        let totalBankAmount = 0, totalBankAdmin = 0, countBank = 0;
+
+        data.forEach(row => {
+            const amount = parseFloat(row.jumlah) || 0;
+            const fee = this.utils.calculateAdminFee(row, this.state.settings);
+            totalAllAmount += amount;
+            totalAllAdmin += fee;
+
+            if (this.utils.isQrisTransaction(row)) {
+                totalQrisAmount += amount;
+                totalQrisAdmin += fee;
+                countQris++;
+            } else {
+                totalBankAmount += amount;
+                totalBankAdmin += fee;
+                countBank++;
+            }
+        });
+
+        let currentChannelFilter = 'all'; // 'all' | 'qris' | 'bank'
+        let currentModalData = data;
+
+        const headerHTML = `
             <div class="transaction-detail-grid-layout ${layoutClass}">
                 ${canEdit ? '<div class="p-2 text-center"><input type="checkbox" id="select-all-modal-checkbox" class="form-input"></div>' : ''}
                 <div class="p-2">Tanggal</div>
@@ -1648,27 +1672,66 @@ const AppUI = {
             </div>
         `;
 
-        const totalAmount = data.reduce((sum, row) => sum + (parseFloat(row.jumlah) || 0), 0);
-        const totalAdminFee = data.reduce((sum, row) => sum + this.utils.calculateAdminFee(row, this.state.settings), 0);
-
         const contentHTML = `
-            <div id="transaction-modal-controls" class="flex justify-between items-center mb-4">
+            <div id="transaction-modal-controls" class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
                 <div>
-                    <h3 class="text-lg font-bold">Transaksi untuk ${userName}</h3>
+                    <h3 class="text-lg font-bold">Transaksi untuk ${this.qrisCheck ? this.qrisCheck._escapeHtml(userName) : userName}</h3>
                     <p id="modal-data-info" class="text-sm text-text-secondary">Menampilkan ${data.length} transaksi.</p>
                 </div>
-                <div class="flex gap-2">
-                     ${canEdit ? `
-                        <button id="bulk-edit-modal-btn" class="btn btn-secondary btn-sm hidden items-center gap-1"><i data-lucide="edit" class="w-4 h-4"></i> <span id="bulk-edit-modal-text">Ubah</span></button>
-                        <button id="delete-modal-btn" class="btn btn-danger btn-sm hidden items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i> <span id="delete-modal-text">Hapus</span></button>
+
+                <div class="flex items-center gap-2 self-stretch md:self-auto justify-between md:justify-end">
+                    <!-- Filter Tipe Transaksi (Semua / QRIS / Bank) -->
+                    <div class="inline-flex rounded-lg p-1 bg-bg-secondary/70 border border-border-color/60 text-xs font-semibold">
+                        <button id="modal-filter-all-btn" class="px-3 py-1 rounded transition-colors bg-color-primary text-text-on-primary">
+                            Semua (${data.length})
+                        </button>
+                        <button id="modal-filter-qris-btn" class="px-3 py-1 rounded transition-colors text-text-secondary hover:text-text-primary">
+                            QRIS (${countQris})
+                        </button>
+                        <button id="modal-filter-bank-btn" class="px-3 py-1 rounded transition-colors text-text-secondary hover:text-text-primary">
+                            Bank / EDC / TF (${countBank})
+                        </button>
+                    </div>
+
+                    ${canEdit ? `
+                        <div class="flex gap-2">
+                            <button id="bulk-edit-modal-btn" class="btn btn-secondary btn-sm hidden items-center gap-1"><i data-lucide="edit" class="w-4 h-4"></i> <span id="bulk-edit-modal-text">Ubah</span></button>
+                            <button id="delete-modal-btn" class="btn btn-danger btn-sm hidden items-center gap-1"><i data-lucide="trash-2" class="w-4 h-4"></i> <span id="delete-modal-text">Hapus</span></button>
+                        </div>
                     ` : ''}
                 </div>
             </div>
+
+            <!-- Panel Rincian Admin QRIS & Bank -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                <div class="p-2.5 rounded-lg bg-bg-panel border border-border-color/70 flex flex-col">
+                    <span class="text-[11px] uppercase tracking-wider text-text-muted font-bold">Total Admin Keseluruhan</span>
+                    <span id="modal-card-total-admin" class="text-base font-bold text-color-primary mt-0.5">${this.utils.formatCurrency(totalAllAdmin)}</span>
+                    <span id="modal-card-total-amount" class="text-xs text-text-secondary mt-0.5">Nominal: ${this.utils.formatCurrency(totalAllAmount)}</span>
+                </div>
+                <div class="p-2.5 rounded-lg bg-bg-panel border border-color-success/40 bg-color-success/5 flex flex-col">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] uppercase tracking-wider text-color-success font-bold">Total Admin QRIS</span>
+                        <span class="text-[10px] px-1.5 py-0.2 rounded bg-color-success/20 text-color-success font-semibold">${countQris} tx</span>
+                    </div>
+                    <span class="text-base font-bold text-color-success mt-0.5">${this.utils.formatCurrency(totalQrisAdmin)}</span>
+                    <span class="text-xs text-text-secondary mt-0.5">Nominal: ${this.utils.formatCurrency(totalQrisAmount)}</span>
+                </div>
+                <div class="p-2.5 rounded-lg bg-bg-panel border border-color-primary/40 bg-color-primary/5 flex flex-col">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] uppercase tracking-wider text-color-primary font-bold">Total Admin Bank (EDC / TF)</span>
+                        <span class="text-[10px] px-1.5 py-0.2 rounded bg-color-primary/20 text-color-primary font-semibold">${countBank} tx</span>
+                    </div>
+                    <span class="text-base font-bold text-color-primary mt-0.5">${this.utils.formatCurrency(totalBankAdmin)}</span>
+                    <span class="text-xs text-text-secondary mt-0.5">Nominal: ${this.utils.formatCurrency(totalBankAmount)}</span>
+                </div>
+            </div>
+
             <div class="border border-border-color rounded-lg overflow-hidden">
                 <div class="bg-bg-panel sticky top-0 z-10 p-2 font-bold text-xs uppercase border-b border-border-color">
                     ${headerHTML}
                 </div>
-                <div id="transaction-detail-scroll-container" class="h-[50vh] overflow-y-auto relative">
+                <div id="transaction-detail-scroll-container" class="h-[46vh] overflow-y-auto relative">
                     <div id="transaction-detail-scroller" class="relative w-full">
                         <div id="transaction-detail-tbody"></div>
                     </div>
@@ -1676,17 +1739,17 @@ const AppUI = {
                 <div class="bg-bg-panel p-2 font-bold text-xs uppercase border-t border-border-color">
                     <div class="transaction-detail-grid-layout ${layoutClass}">
                         ${canEdit ? '<div></div>' : ''}
-                        <div class="p-2">TOTAL TRANSAKSI:</div>
+                        <div class="p-2">SUBTOTAL FILTER:</div>
                         <div class="p-2"></div>
-                        <div class="p-2 text-right text-color-primary text-sm font-display font-bold">${this.utils.formatCurrency(totalAmount)}</div>
-                        <div class="p-2 text-right text-color-primary text-sm font-display font-bold">${this.utils.formatCurrency(totalAdminFee)}</div>
+                        <div id="modal-footer-total-amount" class="p-2 text-right text-color-primary text-sm font-display font-bold">${this.utils.formatCurrency(totalAllAmount)}</div>
+                        <div id="modal-footer-total-fee" class="p-2 text-right text-color-primary text-sm font-display font-bold">${this.utils.formatCurrency(totalAllAdmin)}</div>
                         <div class="p-2"></div>
                         <div class="p-2"></div>
                     </div>
                 </div>
             </div>
         `;
-    
+
         this.ui.showModal(`Rincian Transaksi`, ``, contentHTML, {
             size: 'xlarge',
             footerHTML: `<button id="generic-modal-close-btn" class="btn btn-primary w-full mt-6">Tutup</button>`,
@@ -1698,7 +1761,7 @@ const AppUI = {
                 this.state.modalSelectedIds.clear();
             }
         });
-    
+
         const renderRowFunction = (row) => {
             const isChecked = this.state.modalSelectedIds.has(row.id);
             const canEditRow = this.state.currentUser && ['Master', 'Admin'].includes(this.state.currentUser.role);
@@ -1708,6 +1771,11 @@ const AppUI = {
             const reportButtonHTML = `<button class="btn btn-secondary btn-sm p-1 report-btn" data-row-id="${row.id}" title="Lapor"><i data-lucide="message-square-warning" class="w-4 h-4 pointer-events-none"></i></button>`;
             const editButtonHTML = canEditRow ? `<button class="btn btn-secondary btn-sm p-1 edit-modal-btn" data-row-id="${row.id}" title="Edit"><i data-lucide="edit" class="w-4 h-4 pointer-events-none"></i></button>` : '';
 
+            const isQris = this.utils.isQrisTransaction(row);
+            const badgeHTML = isQris 
+                ? `<span class="inline-block px-1.5 py-0.5 text-[10px] rounded font-semibold bg-color-success/15 text-color-success mr-1">QRIS</span>`
+                : `<span class="inline-block px-1.5 py-0.5 text-[10px] rounded font-semibold bg-color-primary/15 text-color-primary mr-1">BANK</span>`;
+
             return `
                 <div class="h-[40px] transaction-detail-grid-layout ${layoutClass} border-b border-border-color/50 hover:bg-color-primary/10">
                     ${checkboxHTML}
@@ -1715,7 +1783,7 @@ const AppUI = {
                     <div class="p-2 truncate">${row.nama}</div>
                     <div class="p-2 text-right">${this.utils.formatCurrency(row.jumlah)}</div>
                     <div class="p-2 text-right">${this.utils.formatCurrency(this.utils.calculateAdminFee(row, this.state.settings))}</div>
-                    <div class="p-2 truncate" title="${row.keterangan}">${row.keterangan}</div>
+                    <div class="p-2 truncate" title="${row.keterangan}">${badgeHTML}${row.keterangan}</div>
                     <div class="p-2 text-center flex justify-center gap-1">
                         ${reportButtonHTML}
                         ${editButtonHTML}
@@ -1729,7 +1797,7 @@ const AppUI = {
             containerEl: document.getElementById('transaction-detail-scroll-container'),
             scrollerEl: document.getElementById('transaction-detail-scroller'),
             contentEl: document.getElementById('transaction-detail-tbody'),
-            fullData: data,
+            fullData: currentModalData,
             renderRowFunction: renderRowFunction,
             rowHeight: 40, 
             onRenderCallback: () => {
@@ -1739,13 +1807,74 @@ const AppUI = {
         this.state.virtualScrollInstances.transactionDetailModal = vsInstance;
         vsInstance.initialize();
 
+        // Fungsi filter channel
+        const setChannelFilter = (type) => {
+            currentChannelFilter = type;
+            if (type === 'qris') {
+                currentModalData = data.filter(r => this.utils.isQrisTransaction(r));
+            } else if (type === 'bank') {
+                currentModalData = data.filter(r => !this.utils.isQrisTransaction(r));
+            } else {
+                currentModalData = data;
+            }
+
+            // Update tab button styles
+            const btnAll = document.getElementById('modal-filter-all-btn');
+            const btnQris = document.getElementById('modal-filter-qris-btn');
+            const btnBank = document.getElementById('modal-filter-bank-btn');
+            const activeClass = 'bg-color-primary text-text-on-primary';
+            const inactiveClass = 'text-text-secondary hover:text-text-primary';
+
+            [btnAll, btnQris, btnBank].forEach(b => {
+                if (b) {
+                    b.className = `px-3 py-1 rounded transition-colors ${inactiveClass}`;
+                }
+            });
+            if (type === 'all' && btnAll) btnAll.className = `px-3 py-1 rounded transition-colors ${activeClass}`;
+            if (type === 'qris' && btnQris) btnQris.className = `px-3 py-1 rounded transition-colors ${activeClass}`;
+            if (type === 'bank' && btnBank) btnBank.className = `px-3 py-1 rounded transition-colors ${activeClass}`;
+
+            // Update subtotal footer & info
+            const subAmount = currentModalData.reduce((sum, r) => sum + (parseFloat(r.jumlah) || 0), 0);
+            const subAdmin = currentModalData.reduce((sum, r) => sum + this.utils.calculateAdminFee(r, this.state.settings), 0);
+            const footerAmountEl = document.getElementById('modal-footer-total-amount');
+            const footerFeeEl = document.getElementById('modal-footer-total-fee');
+            const infoEl = document.getElementById('modal-data-info');
+
+            if (footerAmountEl) footerAmountEl.textContent = this.utils.formatCurrency(subAmount);
+            if (footerFeeEl) footerFeeEl.textContent = this.utils.formatCurrency(subAdmin);
+            if (infoEl) infoEl.textContent = `Menampilkan ${currentModalData.length} transaksi (${type.toUpperCase()}).`;
+
+            // Reset selection checkbox
+            this.state.modalSelectedIds.clear();
+            const selectAllCheckbox = document.getElementById('select-all-modal-checkbox');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.indeterminate = false;
+            }
+            if (this.handlers.updateModalActionButtonsState) {
+                this.handlers.updateModalActionButtonsState();
+            }
+
+            // Update virtual scroll
+            vsInstance.setData(currentModalData);
+        };
+
+        const btnAll = document.getElementById('modal-filter-all-btn');
+        const btnQris = document.getElementById('modal-filter-qris-btn');
+        const btnBank = document.getElementById('modal-filter-bank-btn');
+
+        if (btnAll) btnAll.onclick = () => setChannelFilter('all');
+        if (btnQris) btnQris.onclick = () => setChannelFilter('qris');
+        if (btnBank) btnBank.onclick = () => setChannelFilter('bank');
+
         if (canEdit) {
             document.getElementById('delete-modal-btn').onclick = () => this.handlers.handleDeleteSelectedInModal();
             document.getElementById('bulk-edit-modal-btn').onclick = () => this.handlers.handleBulkEditInModal();
             
             const modalContent = document.getElementById('generic-modal-content');
-            if(modalContent) {
-                modalContent.addEventListener('change', (e) => this.handlers.handleModalCheckboxChange(e, data));
+            if (modalContent) {
+                modalContent.addEventListener('change', (e) => this.handlers.handleModalCheckboxChange(e, currentModalData));
             }
         }
     }

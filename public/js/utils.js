@@ -227,6 +227,18 @@ const AppUtils = {
         return totalFee;
     },
 
+    isQrisTransaction(row) {
+        if (!row) return false;
+        const ket = String(row.keterangan || '').toUpperCase();
+        // Cek pola QRIS khas Tartun V2
+        if (ket.includes('TARTUN QR') || ket.includes('QRIS') || ket.startsWith('QR ')) return true;
+        // Jika memiliki ref_code / RRN khas QR dan bukan transfer/EDC bank konvensional
+        if (row.ref_code && !ket.includes('EDC') && !ket.includes('TF') && !ket.includes('TRANSFER')) return true;
+        // Pola regex RRN/REF QR jika keterangan mengandung penanda settlement
+        if (/\bQR\b/i.test(ket) && !ket.includes('EDC')) return true;
+        return false;
+    },
+
     _downloadBlob(filename, blob) {
         const link = document.createElement("a");
         link.href = window.URL.createObjectURL(blob);
