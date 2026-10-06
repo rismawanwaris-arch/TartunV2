@@ -40,46 +40,107 @@ const AppQrisCheck = {
     },
 
     // ---- Parser ----
-    // Format yang didukung (notifikasi QRIS per transaksi, dipisah baris kosong):
+    // Format yang didukung:
+    // Format Lama:
     //   RRN: 00F1000ZT4P1 | 21.42 WIB
     //   ALFA 1 CELL (NMID: ID1026574479725)
     //   Menerima pembayaran dari SEABANK a.n. **YLA ****SYA
     //   + Rp 175.000
+    //
+    // Format Baru:
+    //   Menerima pembayaran dari GOPAY a.n. **PAY
+    //   TID : A01 | RRN : 1sy2jmy01559 | 06 Okt 2026 13:20:12 WIB
+    //   + Rp 173.000,00
+    //   Lihat Detail
     parse(rawText) {
-        const blocks = String(rawText || '')
-            .split(/(?=RRN:\s*)/i)
-            .map(b => b.trim())
+        const lines = String(rawText || '')
+            .split('\n')
+            .map(l => l.trim())
             .filter(Boolean);
 
+        const blocks = [];
+        let current = [];
+
+        for (const line of lines) {
+            if (line.toLowerCase() === 'lihat detail') continue;
+
+            const startsWithRrn = /^RRN\s*:/i.test(line);
+            const startsWithPayer = /^menerima pembayaran dari/i.test(line);
+
+            if (startsWithRrn) {
+                if (current.length > 0) {
+                    blocks.push(current);
+                    current = [];
+                }
+            } else if (startsWithPayer) {
+                const hasPayer = current.some(x => /^menerima pembayaran dari/i.test(x));
+                const hasAmount = current.some(x => /^[+]\s*Rp/i.test(x));
+                if (hasPayer || hasAmount) {
+                    blocks.push(current);
+                    current = [];
+                }
+            }
+            current.push(line);
+        }
+        if (current.length > 0) blocks.push(current);
+
         const transactions = [];
-        for (const block of blocks) {
-            const tx = this.qrisCheck._parseBlock(block);
+        for (const blockLines of blocks) {
+            const tx = this.qrisCheck._parseBlock(blockLines);
             if (tx) transactions.push(tx);
         }
         return transactions;
     },
 
-    _parseBlock(block) {
-        const lines = block.split('\n').map(l => l.trim()).filter(Boolean);
-        if (lines.length < 3) return null;
+    _parseBlock(blockInput) {
+        const lines = Array.isArray(blockInput)
+            ? blockInput
+            : String(blockInput || '').split('\n').map(l => l.trim()).filter(Boolean);
 
-        const rrnMatch = lines[0].match(/RRN:\s*([^\s|]+)\s*\|\s*([\d.]+)\s*WIB/i);
-        if (!rrnMatch) return null;
-        const rrn = rrnMatch[1];
-        const time = rrnMatch[2] + ' WIB';
+        if (lines.length < 2) return null;
 
-        // Baris outlet, mis. "ALFA 1 CELL (NMID: ID1026574479725)".
+        // 1. Ekstraksi RRN dan Waktu
+        let rrn = '';
+        let time = '';
+        const rrnLine = lines.find(l => /RRN\s*:/i.test(l));
+        if (rrnLine) {
+            const rrnMatch = rrnLine.match(/RRN\s*:\s*([A-Za-z0-9]+)/i);
+            if (rrnMatch) rrn = rrnMatch[1];
+
+            // Waktu format lama: "| 21.42 WIB"
+            // Waktu format baru: "| 06 Okt 2026 13:20:12 WIB"
+            const timeWithSec = rrnLine.match(/(\d{1,2}:\d{2}(?::\d{2})?)\s*WIB/i);
+            const timeOldFormat = rrnLine.match(/\|\s*([\d.]+)\s*WIB/i);
+
+            if (timeWithSec) {
+                time = timeWithSec[1].replace(/:/g, '.') + ' WIB';
+            } else if (timeOldFormat) {
+                time = timeOldFormat[1] + ' WIB';
+            }
+        }
+        if (!rrn) return null;
+
+        // 2. Baris outlet jika ada, mis. "ALFA 1 CELL (NMID: ID1026574479725)"
         let outlet = '';
         const outletLine = lines.find(l => /\(NMID:\s*[^)]+\)/i.test(l));
         if (outletLine) {
             const outletMatch = outletLine.match(/^(.*?)\s*\(NMID:\s*[^)]+\)/i);
             if (outletMatch) outlet = outletMatch[1].trim();
         }
-        if (!outlet && lines[1] && !lines[1].startsWith('+') && !lines[1].toLowerCase().includes('menerima pembayaran')) {
-            outlet = lines[1].replace(/\(NMID:.*?\)/i, '').trim();
+        if (!outlet) {
+            const candidateLine = lines.find(l => 
+                !l.startsWith('+') && 
+                !/menerima pembayaran/i.test(l) && 
+                !/RRN\s*:/i.test(l) && 
+                !/TID\s*:/i.test(l) && 
+                l.toLowerCase() !== 'lihat detail'
+            );
+            if (candidateLine) {
+                outlet = candidateLine.replace(/\(NMID:.*?\)/i, '').trim();
+            }
         }
 
-        // Baris bank + nama customer, mis. "Menerima pembayaran dari DANA a.n. *******".
+        // 3. Baris bank + nama pembayar, mis. "Menerima pembayaran dari GOPAY a.n. **PAY"
         let bank = '';
         let customerName = '';
         const payLine = lines.find(l => /Menerima pembayaran dari/i.test(l));
@@ -97,16 +158,20 @@ const AppQrisCheck = {
             }
         }
 
-        // Baris nominal, mis. "+ Rp 175.000".
+        // 4. Baris nominal, mis. "+ Rp 173.000,00" atau "+ Rp 175.000"
         let amount = 0;
         const amountLine = lines.find(l => /^[+]\s*Rp/i.test(l));
         if (amountLine) {
-            const amountMatch = amountLine.match(/[+]\s*Rp\s*([\d.]+)/i);
-            if (amountMatch) amount = parseInt(amountMatch[1].replace(/\./g, ''), 10) || 0;
+            // Bersihkan teks: buang sen (,00) jika ada, lalu ambil angka
+            const cleanStr = amountLine.replace(/,00$/, '').replace(/,0$/, '');
+            const amountMatch = cleanStr.match(/[+]\s*Rp\s*([\d.]+)/i);
+            if (amountMatch) {
+                amount = parseInt(amountMatch[1].replace(/\./g, ''), 10) || 0;
+            }
         }
         if (!amount) return null;
 
-        return { rrn, time, outlet, bank, customerName, amount, isPayment: false };
+        return { rrn, time: time || '00.00 WIB', outlet, bank, customerName, amount, isPayment: false };
     },
 
     // ---- Kalkulasi fee ----

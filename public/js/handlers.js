@@ -2530,9 +2530,22 @@ const AppHandlers = {
             }
             
             this.ui.showLoader('Menganalisis dan memvalidasi data...');
-            
-            const finalDelimiter = delimiter !== null ? delimiter : this.state.settings.dataParsingSettings.pasteDelimiter;
-            const parsedItems = this.handlers.parseRawDataInput(dataToProcess, finalDelimiter);
+
+            // Deteksi otomatis jika teks yang di-paste adalah format notifikasi QRIS BCA
+            // (baik format baru "TID : ... | RRN :" / "Menerima pembayaran dari" maupun format lama)
+            const isQrisNotificationText = (
+                /RRN\s*:/i.test(dataToProcess) && 
+                (/menerima pembayaran/i.test(dataToProcess) || /TID\s*:/i.test(dataToProcess) || /\(NMID:/i.test(dataToProcess))
+            );
+
+            let parsedItems = [];
+            if (isQrisNotificationText) {
+                const defaultDate = this.handlers.getCurrentBusinessMonth().startStr || new Date().toISOString().split('T')[0];
+                parsedItems = this.handlers.parseBcaQrisText(dataToProcess, defaultDate);
+            } else {
+                const finalDelimiter = delimiter !== null ? delimiter : this.state.settings.dataParsingSettings.pasteDelimiter;
+                parsedItems = this.handlers.parseRawDataInput(dataToProcess, finalDelimiter);
+            }
             const { finalStagedData } = await this.handlers.checkForDuplicates(parsedItems);
             
             this.state.stagingData = finalStagedData;
@@ -2622,19 +2635,30 @@ const AppHandlers = {
     },
 
     parseBcaQrisText(text, defaultDate) {
+        const rawLines = String(text || '').split('\n').map(l => l.trim()).filter(Boolean);
         const blocks = [];
-        const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-        
         let currentBlock = [];
-        for (const line of lines) {
-            if (line.toUpperCase().startsWith('RRN:')) {
+
+        for (const line of rawLines) {
+            if (line.toLowerCase() === 'lihat detail') continue;
+
+            const startsWithRrn = /^RRN\s*:/i.test(line);
+            const startsWithPayer = /^menerima pembayaran dari/i.test(line);
+
+            if (startsWithRrn) {
                 if (currentBlock.length > 0) {
                     blocks.push(currentBlock);
+                    currentBlock = [];
                 }
-                currentBlock = [line];
-            } else {
-                currentBlock.push(line);
+            } else if (startsWithPayer) {
+                const hasPayer = currentBlock.some(x => /^menerima pembayaran dari/i.test(x));
+                const hasAmount = currentBlock.some(x => /^[+]\s*Rp/i.test(x));
+                if (hasPayer || hasAmount) {
+                    blocks.push(currentBlock);
+                    currentBlock = [];
+                }
             }
+            currentBlock.push(line);
         }
         if (currentBlock.length > 0) {
             blocks.push(currentBlock);
@@ -2646,6 +2670,13 @@ const AppHandlers = {
         const nameConsolidation = this.state.settings.nameConsolidation || {};
         const exceptionKeywords = this.state.settings.exceptionKeywords || [];
 
+        // Pemetaan nama bulan bahasa Indonesia / Inggris ke angka bulan
+        const monthMap = {
+            jan: '01', peb: '02', feb: '02', mar: '03', apr: '04', mei: '05', may: '05',
+            jun: '06', jul: '07', agu: '08', ags: '08', aug: '08', sep: '09', okt: '10',
+            oct: '10', nop: '11', nov: '11', des: '12', dec: '12'
+        };
+
         blocks.forEach((block, index) => {
             let item = {
                 originalIndex: index,
@@ -2656,32 +2687,69 @@ const AppHandlers = {
             };
 
             try {
-                if (block.length < 3) {
-                    item.errorReason = 'Format mutasi KlikBCA tidak lengkap';
+                if (block.length < 2) {
+                    item.errorReason = 'Format mutasi BCA tidak lengkap';
                     processedItems.push(item);
                     return;
                 }
 
-                // 1. RRN and Time
-                const rrnLine = block[0];
-                const rrnMatch = rrnLine.match(/RRN:\s*([A-Za-z0-9]+)/i);
-                const timeMatch = rrnLine.match(/\|\s*(\d{1,2}\.\d{2})/);
-                
-                if (!rrnMatch) {
+                // 1. Ekstraksi RRN, Jam, dan Tanggal spesifik baris jika ada
+                let rrn = '';
+                let jam = '00:00';
+                let explicitDateStr = null;
+
+                const rrnLine = block.find(l => /RRN\s*:/i.test(l));
+                if (!rrnLine) {
                     item.errorReason = 'RRN tidak ditemukan';
                     processedItems.push(item);
                     return;
                 }
-                const rrn = rrnMatch[1];
-                const jam = timeMatch ? timeMatch[1].replace('.', ':') : '00:00';
 
-                // 2. NMID / Branch
-                const nmidLine = block[1];
-                const nmidMatch = nmidLine.match(/NMID:\s*([A-Za-z0-9]+)/i);
-                const rawNameMatch = nmidLine.match(/^(.*?)\s*\(NMID:/i);
-                
-                let rawName = rawNameMatch ? rawNameMatch[1].trim() : 'UNKNOWN BRANCH';
-                let nmid = nmidMatch ? nmidMatch[1].trim() : '';
+                const rrnMatch = rrnLine.match(/RRN\s*:\s*([A-Za-z0-9]+)/i);
+                if (rrnMatch) rrn = rrnMatch[1];
+                if (!rrn) {
+                    item.errorReason = 'RRN tidak valid';
+                    processedItems.push(item);
+                    return;
+                }
+
+                // Cek format tanggal lengkap di baris RRN: misal "06 Okt 2026 13:20:12 WIB"
+                const fullDateMatch = rrnLine.match(/(\d{1,2})\s+([A-Za-z]{3,4})\s+(\d{4})\s+(\d{1,2}:\d{2}(?::\d{2})?)/i);
+                if (fullDateMatch) {
+                    const [, d, mStr, y, t] = fullDateMatch;
+                    const mon = monthMap[mStr.toLowerCase().slice(0, 3)] || '01';
+                    explicitDateStr = `${y}-${mon}-${d.padStart(2, '0')}`;
+                    jam = t;
+                } else {
+                    // Format lama: "| 21.42 WIB" atau "| 21:42"
+                    const timeMatch = rrnLine.match(/\|\s*(\d{1,2}[.:]\d{2})/);
+                    if (timeMatch) jam = timeMatch[1].replace('.', ':');
+                }
+
+                // 2. NMID / Outlet
+                let rawName = 'UNKNOWN BRANCH';
+                let nmid = '';
+                const nmidLine = block.find(l => /\(NMID:/i.test(l));
+                if (nmidLine) {
+                    const nmidMatch = nmidLine.match(/NMID:\s*([A-Za-z0-9]+)/i);
+                    const rawNameMatch = nmidLine.match(/^(.*?)\s*\(NMID:/i);
+                    if (rawNameMatch) rawName = rawNameMatch[1].trim();
+                    if (nmidMatch) nmid = nmidMatch[1].trim();
+                } else {
+                    // Jika tidak ada NMID di teks notifikasi baru, ambil dari candidate line atau default
+                    const candidateLine = block.find(l => 
+                        !l.startsWith('+') && 
+                        !/menerima pembayaran/i.test(l) && 
+                        !/RRN\s*:/i.test(l) && 
+                        !/TID\s*:/i.test(l) && 
+                        l.toLowerCase() !== 'lihat detail'
+                    );
+                    if (candidateLine) {
+                        rawName = candidateLine.trim();
+                    } else if (this.state.qrisCheckSelectedOutlet) {
+                        rawName = this.state.qrisCheckSelectedOutlet;
+                    }
+                }
 
                 let finalName = rawName;
                 let isNmidWarning = false;
@@ -2695,36 +2763,53 @@ const AppHandlers = {
 
                 let consolidatedName = nameConsolidation[finalName.toUpperCase()] || finalName;
 
-                // 3. Payer details
+                // 3. Rincian Payer & Bank
                 let payerLine = block.find(l => l.toUpperCase().includes('MENERIMA PEMBAYARAN DARI'));
                 let bankName = 'QRIS';
                 let payerName = '';
                 
                 if (payerLine) {
-                    const bankMatch = payerLine.match(/Menerima pembayaran dari\s+([A-Za-z0-9\s]+)\s+a\.n\./i);
-                    const payerMatch = payerLine.match(/a\.n\.\s+(.*)/i);
-                    if (bankMatch) bankName = bankMatch[1].trim().toUpperCase();
-                    if (payerMatch) payerName = payerMatch[1].trim();
+                    const bankMatch = payerLine.match(/Menerima pembayaran dari\s+(.+?)\s+a\.n\.\s*(.+)/i);
+                    const altMatch = payerLine.match(/Menerima pembayaran dari\s+(.+)/i);
+                    if (bankMatch) {
+                        bankName = bankMatch[1].trim().toUpperCase();
+                        payerName = bankMatch[2].trim();
+                    } else if (altMatch) {
+                        bankName = altMatch[1].trim().toUpperCase();
+                    }
                 }
 
-                // 4. Amount
-                const amountLine = block[block.length - 1];
-                const amountMatch = amountLine.replace(/\./g, '').match(/\+\s*Rp\s*([0-9]+)/i);
-                if (!amountMatch) {
+                // 4. Nominal / Amount
+                const amountLine = block.find(l => /^[+]\s*Rp/i.test(l));
+                if (!amountLine) {
                     item.errorReason = 'Jumlah nominal tidak ditemukan';
+                    processedItems.push(item);
+                    return;
+                }
+
+                // Hapus sen ,00 jika ada (mis. "+ Rp 173.000,00" -> 173000)
+                const cleanAmountStr = amountLine.replace(/,00$/, '').replace(/,0$/, '').replace(/\./g, '');
+                const amountMatch = cleanAmountStr.match(/\+\s*Rp\s*([0-9]+)/i);
+                if (!amountMatch) {
+                    item.errorReason = 'Format nominal tidak valid';
                     processedItems.push(item);
                     return;
                 }
                 const jumlah = parseFloat(amountMatch[1]);
 
-                const keterangan = `TARTUN QR RRN:${rrn} | ${bankName} a.n. ${payerName}`;
+                // Standard keterangan TARTUN QR RRN
+                const keterangan = payerName
+                    ? `TARTUN QR RRN:${rrn} Menerima pembayaran dari ${bankName} a.n. ${payerName}`
+                    : `TARTUN QR RRN:${rrn} Menerima pembayaran dari ${bankName}`;
+
                 if (AppImport.matchesKeyword(keterangan, exceptionKeywords)) {
                     return;
                 }
 
-                const dateObj = new Date(defaultDate);
+                const baseDate = explicitDateStr || defaultDate || new Date().toISOString().split('T')[0];
+                const dateObj = new Date(baseDate);
                 const [hours, minutes] = jam.split(':');
-                dateObj.setHours(parseInt(hours, 10), parseInt(minutes, 10), 0, 0);
+                dateObj.setHours(parseInt(hours, 10) || 0, parseInt(minutes, 10) || 0, 0, 0);
 
                 // Generate Row Hash (formatted date datepart + name + amount + keterangan)
                 const rowHash = `${dateObj.toISOString().split('T')[0]}|${consolidatedName}|${jumlah}|${keterangan}`;
