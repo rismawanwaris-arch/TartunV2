@@ -1857,7 +1857,7 @@ const AppUI = {
             }
 
             // Update virtual scroll
-            vsInstance.setData(currentModalData);
+            vsInstance.updateData(currentModalData);
         };
 
         const btnAll = document.getElementById('modal-filter-all-btn');
@@ -1874,6 +1874,7 @@ const AppUI = {
             
             const modalContent = document.getElementById('generic-modal-content');
             if (modalContent) {
+                // Gunakan fungsi lambda agar selalu merujuk pada currentModalData yang aktif saat checkbox di-klik
                 modalContent.addEventListener('change', (e) => this.handlers.handleModalCheckboxChange(e, currentModalData));
             }
         }

@@ -62,6 +62,10 @@ const VirtualScrollManager = {
         this.updateAndRender();
     },
 
+    setData(newData) {
+        this.updateData(newData);
+    },
+
     updateAndRender() {
         if (this.containerEl.clientHeight === 0) {
             return; 
