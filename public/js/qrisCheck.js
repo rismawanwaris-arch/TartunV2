@@ -17,7 +17,7 @@ const AppQrisCheck = {
     // Pola default Batch Filter Keterangan (sama dengan nilai awal
     // AppState.batchFilterRegexPattern). Disalin sebagai konstanta agar uji-baca
     // tidak terpengaruh bila pola di sesi ini pernah diubah.
-    BATCH_FILTER_PATTERN: 'RRN:\\s*([^|]+?)\\s*\\|',
+    BATCH_FILTER_PATTERN: 'RRN\\s*:\\s*([^|\\s]+)',
 
     _escapeHtml(str) {
         return String(str ?? '').replace(/[&<>"']/g, (c) => ({

@@ -732,7 +732,7 @@ const AppState = {
     analysisColumnFilters: {},
     batchFilterCodes: [],
     batchFilterRawText: '',
-    batchFilterRegexPattern: 'RRN:\\s*([^|]+?)\\s*\\|',
+    batchFilterRegexPattern: 'RRN\\s*:\\s*([^|\\s]+)',
     analysisUiState: {
         focusedColumn: null,
         cursorPosition: null

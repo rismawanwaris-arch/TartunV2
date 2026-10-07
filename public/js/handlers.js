@@ -1588,7 +1588,7 @@ const AppHandlers = {
 
     openBatchFilterModal() {
         const rawText = this.state.batchFilterRawText || '';
-        const pattern = this.state.batchFilterRegexPattern || 'RRN:\\s*([^|]+?)\\s*\\|';
+        const pattern = this.state.batchFilterRegexPattern || 'RRN\\s*:\\s*([^|\\s]+)';
 
         const contentHTML = `
             <div class="space-y-4 text-sm">
@@ -1600,7 +1600,7 @@ const AppHandlers = {
                 <div>
                     <label for="batch-filter-regex-input" class="font-bold text-text-secondary text-xs">Pola Regex</label>
                     <input type="text" id="batch-filter-regex-input" class="form-input w-full mt-1 font-mono text-xs">
-                    <p class="text-xs text-text-muted mt-1">Grup tangkap pertama <code>(...)</code> dipakai sebagai hasil. Default: ambil teks setelah <code>RRN:</code> dan sebelum <code>|</code>.</p>
+                    <p class="text-xs text-text-muted mt-1">Grup tangkap pertama <code>(...)</code> dipakai sebagai hasil. Default: mengekstrak kode RRN dari notifikasi BCA maupun format ringkasan operator.</p>
                     <p id="batch-filter-regex-error" class="text-xs text-color-danger mt-1 hidden"></p>
                 </div>
                 <div>
