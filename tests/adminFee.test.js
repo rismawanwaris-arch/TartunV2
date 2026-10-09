@@ -27,6 +27,13 @@ test('keyword dipisah koma, tidak peka huruf besar/kecil', () => {
   assert.equal(fee(50000, 'Tartun Tf'), 3000);
 });
 
+test('keyword hanya cocok sebagai kata utuh (word boundary), tidak mencocokkan substring di dalam kata/kode ref', () => {
+  // 'FIQRI' mengandung 'QR' tapi bukan kata QR utuh -> harus kena aturan TF (bukan QR)
+  assert.equal(fee(50000, 'TARTUN TF BRI FAHMI FIQRI :NISPIDJA'), 3000);
+  // 'GQR' pada kode ID GoPay bukan kata QR utuh
+  assert.equal(fee(50000, 'TARTUN TF BRI GoPay Bank Transfer ID2622935095854GQR'), 3000);
+});
+
 test('tanpa keyword cocok -> 0', () => {
   assert.equal(fee(50000, 'LAINNYA'), 0);
   assert.equal(fee(50000, null), 0);

@@ -9,6 +9,13 @@ const _IDR_FORMATTER = new Intl.NumberFormat('id-ID', {
 // Cache aturan admin ter-kompilasi + memoisasi hasil biaya, di-key per objek
 // `settings`. `settings.load()` selalu membuat objek baru sehingga cache lama
 // otomatis gugur (WeakMap) tanpa perlu invalidasi manual.
+function _makeKeywordRegex(keyword) {
+    const trimmed = String(keyword || '').trim();
+    if (!trimmed) return null;
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`(?:^|[^a-zA-Z0-9])${escaped}(?:[^a-zA-Z0-9]|$)`, 'i');
+}
+
 const _feeBundleCache = new WeakMap();
 function _getFeeBundle(settings) {
     let bundle = _feeBundleCache.get(settings);
@@ -16,13 +23,18 @@ function _getFeeBundle(settings) {
 
     const rules = Array.isArray(settings.adminRules) ? settings.adminRules : [];
     const compiled = rules
-        .map(rule => ({
-            keywords: String(rule.keyword || '').split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
-            amount: Number(rule.amount) || 0,
-            feeType: rule.feeType,
-            feeValue: Number(rule.feeValue) || 0,
-            flatFee: rule.feeValue !== undefined ? Number(rule.feeValue) || 0 : (Number(rule.fee) || 0)
-        }))
+        .map(rule => {
+            const keywords = String(rule.keyword || '').split(',').map(k => k.trim()).filter(Boolean);
+            const regexes = keywords.map(_makeKeywordRegex).filter(Boolean);
+            return {
+                keywords: keywords.map(k => k.toUpperCase()),
+                regexes,
+                amount: Number(rule.amount) || 0,
+                feeType: rule.feeType,
+                feeValue: Number(rule.feeValue) || 0,
+                flatFee: rule.feeValue !== undefined ? Number(rule.feeValue) || 0 : (Number(rule.fee) || 0)
+            };
+        })
         .sort((a, b) => a.amount - b.amount);
 
     bundle = { compiled, memo: new Map() };
@@ -183,7 +195,7 @@ const AppUtils = {
         const bundle = _getFeeBundle(settings);
         const value = parseFloat(row.jumlah) || 0;
         const absValue = Math.abs(value);
-        const keterangan = String(row.keterangan || '').toUpperCase();
+        const keterangan = String(row.keterangan || '');
         const isTiket = row.tipe_sheet === 'TIKET';
 
         // Memoisasi: banyak baris berbagi (keterangan, jumlah, tipe) yang sama.
@@ -194,7 +206,7 @@ const AppUtils = {
         let feeFromRules = 0;
         const matchingRules = [];
         for (const rule of bundle.compiled) {
-            if (rule.keywords.some(kw => keterangan.includes(kw))) {
+            if (rule.regexes.some(re => re.test(keterangan))) {
                 matchingRules.push(rule);
             }
         }

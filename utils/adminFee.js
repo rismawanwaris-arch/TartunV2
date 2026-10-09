@@ -3,16 +3,28 @@
 // memakai versinya sendiri hanya untuk pratinjau (staging, kalkulator, Cek QRIS);
 // nilai final dihitung di sini saat data masuk ke database.
 
+function makeKeywordRegex(keyword) {
+  const trimmed = String(keyword || '').trim();
+  if (!trimmed) return null;
+  const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?:^|[^a-zA-Z0-9])${escaped}(?:[^a-zA-Z0-9]|$)`, 'i');
+}
+
 function compileAdminRules(adminRules) {
   const rules = Array.isArray(adminRules) ? adminRules : [];
   return rules
-    .map(rule => ({
-      keywords: String(rule.keyword || '').split(',').map(k => k.trim().toUpperCase()).filter(Boolean),
-      amount: Number(rule.amount) || 0,
-      feeType: rule.feeType,
-      feeValue: Number(rule.feeValue) || 0,
-      flatFee: rule.feeValue !== undefined ? Number(rule.feeValue) || 0 : (Number(rule.fee) || 0)
-    }))
+    .map(rule => {
+      const keywords = String(rule.keyword || '').split(',').map(k => k.trim()).filter(Boolean);
+      const regexes = keywords.map(makeKeywordRegex).filter(Boolean);
+      return {
+        keywords: keywords.map(k => k.toUpperCase()),
+        regexes,
+        amount: Number(rule.amount) || 0,
+        feeType: rule.feeType,
+        feeValue: Number(rule.feeValue) || 0,
+        flatFee: rule.feeValue !== undefined ? Number(rule.feeValue) || 0 : (Number(rule.fee) || 0)
+      };
+    })
     .sort((a, b) => a.amount - b.amount);
 }
 
@@ -31,9 +43,9 @@ function tiketUnikOf(jumlah) {
 // `compiledRules` hasil compileAdminRules(); dikompilasi sekali per batch.
 function computeAdminFee(row, compiledRules) {
   const absValue = Math.abs(parseFloat(row.jumlah) || 0);
-  const keterangan = String(row.keterangan || '').toUpperCase();
+  const keterangan = String(row.keterangan || '');
 
-  const matching = compiledRules.filter(rule => rule.keywords.some(kw => keterangan.includes(kw)));
+  const matching = compiledRules.filter(rule => rule.regexes.some(re => re.test(keterangan)));
 
   let feeFromRules = 0;
   if (matching.length > 0) {
